@@ -1,8 +1,9 @@
 import { create } from "zustand";
 import axios from "axios";
 import useSubscriptionStore from "./subscriptionStore";
+import API_URL from "../config/apiConfig";
 
-const API_BASE_URL = `${import.meta.env.VITE_API_URL}/api/usage`;
+const API_BASE_URL = `${API_URL}/api/usage`;
 const BASE_DAILY_LIMIT = 5;
 
 const useUsageStore = create((set, get) => ({
@@ -54,7 +55,6 @@ const useUsageStore = create((set, get) => ({
       }
     } catch (err) {
       console.warn("Scan record fallback:", err.message);
-      // Fallback local increment
       set((state) => {
         const scansUsed = state.usage.moodScansUsed + 1;
         const canScan = scansUsed < state.usage.totalAllowedScans;

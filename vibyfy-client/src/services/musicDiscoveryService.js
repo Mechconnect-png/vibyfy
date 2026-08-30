@@ -1,7 +1,8 @@
 import axios from "axios";
 import { getSpotifyWebUrl, validateTrackIdentity } from "./spotifyService";
+import API_URL from "../config/apiConfig";
 
-const API_BASE_URL = `${import.meta.env.VITE_API_URL}/api/music`;
+const API_BASE_URL = `${API_URL}/api/music`;
 
 /**
  * Frontend Canonical Track Normalizer
@@ -47,7 +48,7 @@ export const discoverByMood = async (lockedMood, limit = 10, offset = 0) => {
   try {
     const res = await axios.get(`${API_BASE_URL}/discover`, {
       params: { mood: targetMood, limit, offset },
-      timeout: 5000,
+      timeout: 8000,
     });
 
     if (res.data && res.data.data) {
@@ -78,7 +79,7 @@ export const getReliefMusicJourney = async (fromMood, toMood, limit = 10, offset
   try {
     const res = await axios.get(`${API_BASE_URL}/relief`, {
       params: { from: fromMood, to: toMood, limit, offset },
-      timeout: 5000,
+      timeout: 8000,
     });
 
     if (res.data && res.data.data) {
@@ -111,7 +112,7 @@ export const searchMusic = async (query, limit = 10, offset = 0) => {
   try {
     const res = await axios.get(`${API_BASE_URL}/search`, {
       params: { q: query.trim(), limit, offset },
-      timeout: 5000,
+      timeout: 8000,
     });
 
     if (res.data && res.data.data) {

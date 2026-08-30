@@ -1,70 +1,45 @@
 import { create } from "zustand";
 import axios from "axios";
+import toast from "react-hot-toast";
+import API_URL from "../config/apiConfig";
 
-const API_BASE_URL = `${import.meta.env.VITE_API_URL}/api/usage`;
+const API_BASE_URL = `${API_URL}/api/usage`;
 
 const useSubscriptionStore = create((set, get) => ({
-  plan: "free",
-  isPremium: false,
-  isLoading: false,
+  plan: localStorage.getItem("vibyfy_plan") || "free",
+  isPremium: (localStorage.getItem("vibyfy_plan") || "free") === "premium",
 
-  fetchPlan: async (userId = "default_user") => {
-    try {
-      const res = await axios.get(`${API_BASE_URL}/status`, { params: { userId } });
-      if (res.data && res.data.usage) {
-        set({
-          plan: res.data.usage.plan,
-          isPremium: res.data.usage.isPremium,
-        });
-      }
-    } catch (err) {
-      console.warn("Failed to fetch plan:", err.message);
-    }
+  setPlan: (newPlan) => {
+    localStorage.setItem("vibyfy_plan", newPlan);
+    set({ plan: newPlan, isPremium: newPlan === "premium" });
   },
 
   upgradeToPremium: async (userId = "default_user") => {
-    set({ isLoading: true });
     try {
       const res = await axios.post(`${API_BASE_URL}/upgrade-plan`, { userId, plan: "premium" });
-      if (res.data && res.data.usage) {
-        set({
-          plan: "premium",
-          isPremium: true,
+      if (res.data && res.data.success) {
+        get().setPlan("premium");
+        toast.success("✨ Welcome to VIBYFY Premium! Unlimited Vibe Scans Unlocked.", {
+          duration: 5000,
+          icon: "👑",
         });
       }
     } catch (err) {
-      console.error("Failed to upgrade to premium:", err);
-      // Fallback local upgrade for smooth UX
-      set({ plan: "premium", isPremium: true });
-    } finally {
-      set({ isLoading: false });
+      console.warn("Upgrade plan fallback notice:", err.message);
+      get().setPlan("premium");
+      toast.success("✨ Welcome to VIBYFY Premium! Unlimited Vibe Scans Unlocked.", {
+        duration: 5000,
+        icon: "👑",
+      });
     }
   },
 
   downgradeToFree: async (userId = "default_user") => {
-    set({ isLoading: true });
     try {
-      const res = await axios.post(`${API_BASE_URL}/upgrade-plan`, { userId, plan: "free" });
-      if (res.data && res.data.usage) {
-        set({
-          plan: "free",
-          isPremium: false,
-        });
-      }
-    } catch (err) {
-      set({ plan: "free", isPremium: false });
-    } finally {
-      set({ isLoading: false });
-    }
-  },
-
-  togglePlan: (userId = "default_user") => {
-    const current = get().plan;
-    if (current === "premium") {
-      get().downgradeToFree(userId);
-    } else {
-      get().upgradeToPremium(userId);
-    }
+      await axios.post(`${API_BASE_URL}/upgrade-plan`, { userId, plan: "free" });
+    } catch (e) {}
+    get().setPlan("free");
+    toast("Switched to Free Plan (5 Scans/Day)");
   },
 }));
 

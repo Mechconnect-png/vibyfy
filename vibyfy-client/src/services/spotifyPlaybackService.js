@@ -1,7 +1,8 @@
 import axios from "axios";
 import toast from "react-hot-toast";
+import API_URL from "../config/apiConfig";
 
-const API_BASE_URL = `${import.meta.env.VITE_API_URL}/api/spotify`;
+const API_BASE_URL = `${API_URL}/api/spotify`;
 
 /**
  * Validate track identity before attempting playback
@@ -67,7 +68,6 @@ export const attemptSpotifyPlayback = async (track, userAccessToken = null) => {
       toast.loading(`Launching Spotify App for "${v.title}"...`, { duration: 3000, icon: "📱" });
       window.location.href = v.spotifyUri;
 
-      // Fallback timer if app fails to launch
       setTimeout(() => {
         if (document.hidden) return;
         console.log("📱 Mobile app deep link fallback to web URL");

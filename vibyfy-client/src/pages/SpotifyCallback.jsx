@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import toast from "react-hot-toast";
 import useSpotifyAuthStore from "../store/spotifyAuthStore";
+import API_URL from "../config/apiConfig";
 
 export const SpotifyCallback = () => {
   const [searchParams] = useSearchParams();
@@ -23,7 +24,7 @@ export const SpotifyCallback = () => {
       toast.loading("Authenticating Spotify Player Session...", { id: "sp-oauth" });
 
       axios
-        .post(`${import.meta.env.VITE_API_URL}/api/spotify/callback`, { code })
+        .post(`${API_URL}/api/spotify/callback`, { code })
         .then((res) => {
           if (res.data && res.data.userAccessToken) {
             localStorage.setItem("vibyfy_spotify_user_token", res.data.userAccessToken);
