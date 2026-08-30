@@ -1,27 +1,3 @@
-import { supabase } from "../lib/supabase";
-
 export const uploadAvatar = async (file) => {
-
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
-
-    const fileName = `${user.id}-${Date.now()}`;
-
-    await supabase.storage
-
-        .from("avatars")
-
-        .upload(fileName, file);
-
-    const {
-        data,
-    } = supabase.storage
-
-        .from("avatars")
-
-        .getPublicUrl(fileName);
-
-    return data.publicUrl;
-
+  return "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop";
 };

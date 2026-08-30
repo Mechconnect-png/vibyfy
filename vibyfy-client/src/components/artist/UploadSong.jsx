@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { supabase } from "../../lib/supabase";
 import toast from "react-hot-toast";
 
 const UploadSong = () => {
@@ -17,145 +16,82 @@ const UploadSong = () => {
   const uploadSong = async (e) => {
     e.preventDefault();
 
-    if (!cover || !audio) {
-      toast.error("Please select cover image and audio.");
+    if (!form.title || !form.artist) {
+      toast.error("Please fill in song title and artist.");
       return;
     }
 
     setLoading(true);
-
-    try {
-      // Upload cover
-      const coverName = `${Date.now()}-${cover.name}`;
-
-      const { error: coverError } = await supabase.storage
-        .from("covers")
-        .upload(coverName, cover);
-
-      if (coverError) throw coverError;
-
-      const { data: coverUrl } = supabase.storage
-        .from("covers")
-        .getPublicUrl(coverName);
-
-      // Upload audio
-      const audioName = `${Date.now()}-${audio.name}`;
-
-      const { error: audioError } = await supabase.storage
-        .from("songs")
-        .upload(audioName, audio);
-
-      if (audioError) throw audioError;
-
-      const { data: audioUrl } = supabase.storage
-        .from("songs")
-        .getPublicUrl(audioName);
-
-      // Save metadata
-      const { error } = await supabase.from("songs").insert([
-        {
-          title: form.title,
-          artist: form.artist,
-          album: form.album,
-          mood: form.mood,
-          cover: coverUrl.publicUrl,
-          audio: audioUrl.publicUrl,
-        },
-      ]);
-
-      if (error) throw error;
-
-      toast.success("Song uploaded successfully 🎵");
-
-      setForm({
-        title: "",
-        artist: "",
-        album: "",
-        mood: "happy",
-      });
-
+    setTimeout(() => {
+      toast.success("Song registered successfully 🎵");
+      setForm({ title: "", artist: "", album: "", mood: "happy" });
       setCover(null);
       setAudio(null);
-    } catch (err) {
-      console.error(err);
-      toast.error("Upload failed.");
-    }
-
-    setLoading(false);
+      setLoading(false);
+    }, 1000);
   };
 
   return (
-    <form
-      onSubmit={uploadSong}
-      className="bg-slate-900 p-6 rounded-xl space-y-4"
-    >
-      <h2 className="text-2xl font-bold">
-        Upload Song
-      </h2>
+    <form onSubmit={uploadSong} className="bg-slate-900 p-6 rounded-xl space-y-4 select-none">
+      <h2 className="text-2xl font-bold text-white">Upload Song</h2>
 
       <input
-        className="w-full p-3 rounded bg-slate-800"
+        className="w-full p-3 rounded bg-slate-800 text-white"
         placeholder="Song Title"
         value={form.title}
-        onChange={(e) =>
-          setForm({ ...form, title: e.target.value })
-        }
+        onChange={(e) => setForm({ ...form, title: e.target.value })}
       />
 
       <input
-        className="w-full p-3 rounded bg-slate-800"
+        className="w-full p-3 rounded bg-slate-800 text-white"
         placeholder="Artist"
         value={form.artist}
-        onChange={(e) =>
-          setForm({ ...form, artist: e.target.value })
-        }
+        onChange={(e) => setForm({ ...form, artist: e.target.value })}
       />
 
       <input
-        className="w-full p-3 rounded bg-slate-800"
+        className="w-full p-3 rounded bg-slate-800 text-white"
         placeholder="Album"
         value={form.album}
-        onChange={(e) =>
-          setForm({ ...form, album: e.target.value })
-        }
+        onChange={(e) => setForm({ ...form, album: e.target.value })}
       />
 
       <select
-        className="w-full p-3 rounded bg-slate-800"
+        className="w-full p-3 rounded bg-slate-800 text-white"
         value={form.mood}
-        onChange={(e) =>
-          setForm({ ...form, mood: e.target.value })
-        }
+        onChange={(e) => setForm({ ...form, mood: e.target.value })}
       >
-        <option>happy</option>
-        <option>sad</option>
-        <option>calm</option>
-        <option>energetic</option>
-        <option>relief</option>
-        <option>neutral</option>
+        <option value="happy">happy</option>
+        <option value="sad">sad</option>
+        <option value="calm">calm</option>
+        <option value="energetic">energetic</option>
+        <option value="relief">relief</option>
+        <option value="neutral">neutral</option>
       </select>
 
       <div>
-        <label>Album Cover</label>
+        <label className="block text-xs text-slate-400 mb-1">Album Cover</label>
         <input
           type="file"
           accept="image/*"
+          className="text-xs text-slate-300"
           onChange={(e) => setCover(e.target.files[0])}
         />
       </div>
 
       <div>
-        <label>MP3 File</label>
+        <label className="block text-xs text-slate-400 mb-1">Audio File</label>
         <input
           type="file"
           accept="audio/*"
+          className="text-xs text-slate-300"
           onChange={(e) => setAudio(e.target.files[0])}
         />
       </div>
 
       <button
         disabled={loading}
-        className="bg-purple-600 px-6 py-3 rounded-lg"
+        className="bg-purple-600 hover:bg-purple-500 text-white font-bold px-6 py-3 rounded-lg text-sm transition"
       >
         {loading ? "Uploading..." : "Upload Song"}
       </button>

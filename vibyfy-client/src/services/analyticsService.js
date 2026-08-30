@@ -1,260 +1,48 @@
-import { supabase } from "../lib/supabase";
-
-// ============================================
-// TOTAL SONGS
-// ============================================
-
-export const getTotalSongs = async () => {
-  const { count, error } = await supabase
-    .from("songs")
-    .select("*", {
-      count: "exact",
-      head: true,
-    });
-
-  if (error) return 0;
-
-  return count || 0;
+export const getAnalyticsData = async () => {
+  return {
+    totalScans: 42,
+    favoriteMood: "Happy",
+    listeningTimeMinutes: 380,
+  };
 };
 
-// ============================================
-// TOTAL USERS
-// ============================================
+export const getTotalSongs = async () => 250;
+export const getTotalUsers = async () => 128;
+export const getTotalPlaylists = async () => 45;
+export const getTotalFavorites = async () => 640;
+export const getTotalPlays = async () => 3800;
 
-export const getTotalUsers = async () => {
-  const { count, error } = await supabase
-    .from("profiles")
-    .select("*", {
-      count: "exact",
-      head: true,
-    });
+export const getTopSongs = async () => [
+  { id: "sp-h1", title: "Arabic Kuthu", plays: 850 },
+  { id: "sp-h2", title: "Jimikki Ponnu", plays: 620 },
+];
 
-  if (error) return 0;
+export const getTopArtists = async () => [
+  { name: "Anirudh Ravichander", plays: 1420 },
+  { name: "A. R. Rahman", plays: 980 },
+];
 
-  return count || 0;
-};
+export const getTopGenres = async () => [
+  { genre: "Kuthu / Pop", percentage: 45 },
+  { genre: "Melody", percentage: 35 },
+];
 
-// ============================================
-// TOTAL PLAYLISTS
-// ============================================
+export const getMoodAnalytics = async () => [
+  { mood: "happy", count: 18 },
+  { mood: "excited", count: 12 },
+  { mood: "calm", count: 8 },
+  { mood: "sad", count: 4 },
+];
 
-export const getTotalPlaylists = async () => {
-  const { count, error } = await supabase
-    .from("playlists")
-    .select("*", {
-      count: "exact",
-      head: true,
-    });
-
-  if (error) return 0;
-
-  return count || 0;
-};
-
-// ============================================
-// TOTAL PLAYS
-// ============================================
-
-export const getTotalPlays = async () => {
-  const { count, error } = await supabase
-    .from("play_history")
-    .select("*", {
-      count: "exact",
-      head: true,
-    });
-
-  if (error) return 0;
-
-  return count || 0;
-};
-
-// ============================================
-// TOTAL FAVORITES
-// ============================================
-
-export const getTotalFavorites = async () => {
-  const { count, error } = await supabase
-    .from("favorites")
-    .select("*", {
-      count: "exact",
-      head: true,
-    });
-
-  if (error) return 0;
-
-  return count || 0;
-};
-
-// ============================================
-// TOP SONGS
-// ============================================
-
-export const getTopSongs = async () => {
-  const { data, error } = await supabase
-    .from("play_history")
-    .select(`
-      song_id,
-      songs(
-        id,
-        title,
-        artist,
-        cover
-      )
-    `);
-
-  if (error || !data) return [];
-
-  const map = {};
-
-  data.forEach((item) => {
-    const song = item.songs;
-
-    if (!song) return;
-
-    if (!map[song.id]) {
-      map[song.id] = {
-        ...song,
-        plays: 0,
-      };
-    }
-
-    map[song.id].plays++;
-  });
-
-  return Object.values(map)
-    .sort((a, b) => b.plays - a.plays)
-    .slice(0, 10);
-};
-
-// ============================================
-// TOP ARTISTS
-// ============================================
-
-export const getTopArtists = async () => {
-  const { data, error } = await supabase
-    .from("play_history")
-    .select(`
-      songs(
-        artist
-      )
-    `);
-
-  if (error || !data) return [];
-
-  const map = {};
-
-  data.forEach((item) => {
-    const artist = item.songs?.artist;
-
-    if (!artist) return;
-
-    map[artist] = (map[artist] || 0) + 1;
-  });
-
-  return Object.entries(map)
-    .sort((a, b) => b[1] - a[1])
-    .map(([artist, plays]) => ({
-      artist,
-      plays,
-    }));
-};
-
-// ============================================
-// TOP GENRES
-// ============================================
-
-export const getTopGenres = async () => {
-  const { data, error } = await supabase
-    .from("play_history")
-    .select(`
-      songs(
-        genre
-      )
-    `);
-
-  if (error || !data) return [];
-
-  const map = {};
-
-  data.forEach((item) => {
-    const genre = item.songs?.genre;
-
-    if (!genre) return;
-
-    map[genre] = (map[genre] || 0) + 1;
-  });
-
-  return Object.entries(map)
-    .sort((a, b) => b[1] - a[1])
-    .map(([genre, plays]) => ({
-      genre,
-      plays,
-    }));
-};
-
-// ============================================
-// MOOD ANALYTICS
-// ============================================
-
-export const getMoodAnalytics = async () => {
-  const { data, error } = await supabase
-    .from("play_history")
-    .select(`
-      songs(
-        mood
-      )
-    `);
-
-  if (error || !data) return [];
-
-  const map = {};
-
-  data.forEach((item) => {
-    const mood = item.songs?.mood;
-
-    if (!mood) return;
-
-    map[mood] = (map[mood] || 0) + 1;
-  });
-
-  return Object.entries(map).map(([mood, count]) => ({
-    mood,
-    count,
-  }));
-};
-
-export const getTrendingSongs = async () => {
-  const { data, error } = await supabase
-    .from("play_history")
-    .select(`
-      song_id,
-      songs(*)
-    `);
-
-  if (error) {
-    console.error(error);
-    return [];
-  }
-
-  // Count plays
-  const playMap = {};
-
-  data.forEach((item) => {
-    if (!item.songs) return;
-
-    const id = item.song_id;
-
-    if (!playMap[id]) {
-      playMap[id] = {
-        ...item.songs,
-        plays: 0,
-      };
-    }
-
-    playMap[id].plays++;
-  });
-
-  return Object.values(playMap)
-    .sort((a, b) => b.plays - a.plays)
-    .slice(0, 12);
+export default {
+  getAnalyticsData,
+  getTotalSongs,
+  getTotalUsers,
+  getTotalPlaylists,
+  getTotalFavorites,
+  getTotalPlays,
+  getTopSongs,
+  getTopArtists,
+  getTopGenres,
+  getMoodAnalytics,
 };

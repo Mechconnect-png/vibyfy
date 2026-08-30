@@ -1,79 +1,57 @@
-import { supabase } from "../lib/supabase";
-
-/**
- * Ensures a row exists in `profiles` for the given auth user.
- * Safe to call even if a DB trigger already creates profiles on
- * signup — uses upsert so it's a no-op if the row already exists.
- * Errors are logged but never thrown, so this never blocks signup/login.
- */
-export const ensureProfile = async (user, extra = {}) => {
-    if (!user?.id) return;
-
-    try {
-        await supabase.from("profiles").upsert(
-            {
-                id: user.id,
-                email: user.email,
-                name: extra.name || user.user_metadata?.full_name || "",
-                role: "user",
-                ...extra,
-            },
-            { onConflict: "id", ignoreDuplicates: true }
-        );
-    } catch (err) {
-        console.error("ensureProfile: failed to upsert profile", err);
-    }
-};
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { db, auth } from "../config/firebase";
 
 export const getProfile = async () => {
+  const user = auth.currentUser;
+  if (!user) return null;
 
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
+  try {
+    const docRef = doc(db, "users", user.uid);
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      return snap.data();
+    }
+  } catch (e) {
+    console.warn("Profile fetch notice:", e.message);
+  }
 
-    if (!user) return null;
-
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .single();
-
-    const { data: stats } = await supabase
-        .from("user_stats")
-        .select("*")
-        .eq("user_id", user.id)
-        .single();
-
-    return {
-
-        ...profile,
-
-        songsPlayed: stats?.songs_played || 0,
-
-        minutes: stats?.minutes_listened || 0,
-
-        favorites: stats?.favorites || 0,
-
-        playlists: stats?.playlists || 0,
-
-        followers: stats?.followers || 0,
-
-        following: stats?.following || 0,
-
-    };
-
+  return {
+    uid: user.uid,
+    fullName: user.displayName || user.email?.split("@")[0] || "VIBYFY Listener",
+    email: user.email,
+    plan: "free",
+    createdAt: new Date().toISOString(),
+  };
 };
 
-export const updateProfile = async (values) => {
+export const updateProfile = async (updates = {}) => {
+  const user = auth.currentUser;
+  if (!user) return null;
 
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
+  try {
+    const docRef = doc(db, "users", user.uid);
+    await setDoc(docRef, updates, { merge: true });
+  } catch (e) {
+    console.warn("Update profile notice:", e.message);
+  }
+};
 
-    return await supabase
-        .from("profiles")
-        .update(values)
-        .eq("id", user.id);
+export const ensureProfile = async (user, extra = {}) => {
+  if (!user) return;
+  const profile = await getProfile();
+  if (!profile) {
+    await updateProfile({
+      uid: user.uid,
+      fullName: extra.name || user.displayName || user.email?.split("@")[0] || "VIBYFY Listener",
+      email: user.email,
+      plan: "free",
+      createdAt: new Date().toISOString(),
+    });
+  }
+};
 
+export default {
+  getProfile,
+  updateProfile,
+  ensureProfile,
 };

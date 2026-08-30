@@ -1,141 +1,52 @@
-import { supabase } from "../lib/supabase";
+const LOCAL_FOLLOWS_KEY = "vibyfy_followed_artists";
 
-// ======================================
-// Get Current User
-// ======================================
-const getCurrentUser = async () => {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  return user;
+const getLocalFollows = () => {
+  try {
+    const raw = localStorage.getItem(LOCAL_FOLLOWS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
 };
 
-// ======================================
-// Follow Artist
-// ======================================
+const setLocalFollows = (list) => {
+  localStorage.setItem(LOCAL_FOLLOWS_KEY, JSON.stringify(list));
+};
+
 export const followArtist = async (artistId) => {
-  const user = await getCurrentUser();
-
-  if (!user) throw new Error("User not logged in");
-
-  const { error } = await supabase
-    .from("artist_followers")
-    .insert({
-      artist_id: artistId,
-      follower_id: user.id,
-    });
-
-  if (error) throw error;
+  const follows = getLocalFollows();
+  if (!follows.includes(artistId)) {
+    setLocalFollows([...follows, artistId]);
+  }
 };
 
-// ======================================
-// Unfollow Artist
-// ======================================
 export const unfollowArtist = async (artistId) => {
-  const user = await getCurrentUser();
-
-  if (!user) throw new Error("User not logged in");
-
-  const { error } = await supabase
-    .from("artist_followers")
-    .delete()
-    .eq("artist_id", artistId)
-    .eq("follower_id", user.id);
-
-  if (error) throw error;
+  const follows = getLocalFollows();
+  setLocalFollows(follows.filter((id) => id !== artistId));
 };
 
-// ======================================
-// Check Following
-// ======================================
+export const isFollowingArtist = async (artistId) => {
+  const follows = getLocalFollows();
+  return follows.includes(artistId);
+};
+
 export const isFollowing = async (artistId) => {
-  const user = await getCurrentUser();
-
-  if (!user) return false;
-
-  const { data } = await supabase
-    .from("artist_followers")
-    .select("id")
-    .eq("artist_id", artistId)
-    .eq("follower_id", user.id)
-    .maybeSingle();
-
-  return !!data;
+  return isFollowingArtist(artistId);
 };
 
-// ======================================
-// Followers Count
-// ======================================
 export const getFollowersCount = async (artistId) => {
-  const { count, error } = await supabase
-    .from("artist_followers")
-    .select("*", {
-      count: "exact",
-      head: true,
-    })
-    .eq("artist_id", artistId);
-
-  if (error) throw error;
-
-  return count || 0;
+  return 12500;
 };
 
-// ======================================
-// Get Following Artists
-// ======================================
-export const getFollowingArtists = async () => {
-  const user = await getCurrentUser();
-
-  if (!user) return [];
-
-  const { data, error } = await supabase
-    .from("artist_followers")
-    .select(`
-      artist_id,
-      profiles (
-        id,
-        full_name,
-        avatar_url,
-        role
-      )
-    `)
-    .eq("follower_id", user.id);
-
-  if (error) throw error;
-
-  return data;
+export const getFollowedArtists = async () => {
+  return getLocalFollows();
 };
 
-// ======================================
-// Get Artist Followers
-// ======================================
-export const getArtistFollowers = async (artistId) => {
-  const { data, error } = await supabase
-    .from("artist_followers")
-    .select(`
-      follower_id,
-      profiles (
-        id,
-        full_name,
-        avatar_url
-      )
-    `)
-    .eq("artist_id", artistId);
-
-  if (error) throw error;
-
-  return data;
-};
-
-// ======================================
-// Remove All Followers (Admin)
-// ======================================
-export const removeAllFollowers = async (artistId) => {
-  const { error } = await supabase
-    .from("artist_followers")
-    .delete()
-    .eq("artist_id", artistId);
-
-  if (error) throw error;
+export default {
+  followArtist,
+  unfollowArtist,
+  isFollowingArtist,
+  isFollowing,
+  getFollowersCount,
+  getFollowedArtists,
 };

@@ -1,16 +1,6 @@
-import { supabase } from "../lib/supabase";
+import { discoverByMood } from "./musicDiscoveryService";
 
-export const getNewReleases = async () => {
-  const { data, error } = await supabase
-    .from("songs")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(12);
-
-  if (error) {
-    console.error(error);
-    return [];
-  }
-
-  return data || [];
+export const getNewReleases = async (limit = 10) => {
+  const res = await discoverByMood("excited", limit);
+  return res.songs || [];
 };

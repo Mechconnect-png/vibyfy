@@ -1,27 +1,6 @@
-import { supabase } from "../lib/supabase";
+import { discoverByMood } from "./musicDiscoveryService";
 
-export const getMoodSongs = async (mood) => {
-  const moodMap = {
-    happy: "happy",
-    sad: "relief",
-    angry: "calm",
-    fearful: "calm",
-    disgusted: "calm",
-    surprised: "energetic",
-    neutral: "chill",
-  };
-
-  const dbMood = moodMap[mood] || "chill";
-
-  const { data, error } = await supabase
-    .from("songs")
-    .select("*")
-    .eq("mood", dbMood);
-
-  if (error) throw error;
-
-  return (data || []).map(song => ({
-    ...song,
-    audio: song.audio_url,
-  }));
+export const generateAIPlaylist = async (promptMood = "happy", count = 10) => {
+  const res = await discoverByMood(promptMood, count);
+  return res.songs || [];
 };

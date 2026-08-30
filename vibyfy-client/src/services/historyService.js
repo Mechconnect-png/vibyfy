@@ -1,186 +1,37 @@
-import { supabase } from "../lib/supabase";
+const LOCAL_HISTORY_KEY = "vibyfy_listening_history";
 
-// ==========================================
-// GET CURRENT USER
-// ==========================================
-const getCurrentUser = async () => {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  return user;
-};
-
-// ==========================================
-// SAVE RECENTLY PLAYED
-// ==========================================
-export const saveRecentlyPlayed = async (songId) => {
+const getLocalHistory = () => {
   try {
-    const user = await getCurrentUser();
-
-    if (!user) return;
-
-    // Remove existing occurrence
-    await supabase
-      .from("recently_played")
-      .delete()
-      .eq("user_id", user.id)
-      .eq("song_id", songId);
-
-    // Insert latest play
-    const { error } = await supabase
-      .from("recently_played")
-      .insert({
-        user_id: user.id,
-        song_id: songId,
-      });
-
-    if (error) throw error;
-
-    // Keep only latest 20 songs
-    const { data } = await supabase
-      .from("recently_played")
-      .select("id")
-      .eq("user_id", user.id)
-      .order("played_at", {
-        ascending: false,
-      });
-
-    if (data && data.length > 20) {
-      const removeIds = data
-        .slice(20)
-        .map((item) => item.id);
-
-      await supabase
-        .from("recently_played")
-        .delete()
-        .in("id", removeIds);
-    }
-  } catch (err) {
-    console.error("Recently Played Error:", err);
-  }
-};
-
-// ==========================================
-// SAVE PLAY HISTORY
-// ==========================================
-export const savePlayHistory = async (songId) => {
-  try {
-    const user = await getCurrentUser();
-
-    if (!user) return;
-
-    const { error } = await supabase
-      .from("play_history")
-      .insert({
-        user_id: user.id,
-        song_id: songId,
-      });
-
-    if (error) throw error;
-  } catch (err) {
-    console.error("Play History Error:", err);
-  }
-};
-
-// ==========================================
-// GET RECENTLY PLAYED
-// ==========================================
-export const getRecentlyPlayed = async () => {
-  try {
-    const user = await getCurrentUser();
-
-    if (!user) return [];
-
-    const { data, error } = await supabase
-      .from("recently_played")
-      .select(
-        `
-        played_at,
-        songs(*)
-      `
-      )
-      .eq("user_id", user.id)
-      .order("played_at", {
-        ascending: false,
-      });
-
-    if (error) throw error;
-
-    return data.map((item) => item.songs);
-  } catch (err) {
-    console.error("Get Recently Played Error:", err);
+    const raw = localStorage.getItem(LOCAL_HISTORY_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
     return [];
   }
 };
 
-// ==========================================
-// GET PLAY HISTORY
-// ==========================================
-export const getPlayHistory = async () => {
+const setLocalHistory = (list) => {
   try {
-    const user = await getCurrentUser();
-
-    if (!user) return [];
-
-    const { data, error } = await supabase
-      .from("play_history")
-      .select(
-        `
-        played_at,
-        songs(*)
-      `
-      )
-      .eq("user_id", user.id)
-      .order("played_at", {
-        ascending: false,
-      });
-
-    if (error) throw error;
-
-    return data;
-  } catch (err) {
-    console.error("History Fetch Error:", err);
-    return [];
-  }
+    localStorage.setItem(LOCAL_HISTORY_KEY, JSON.stringify(list.slice(0, 50)));
+  } catch (e) {}
 };
 
-// ==========================================
-// CLEAR PLAY HISTORY
-// ==========================================
-export const clearPlayHistory = async () => {
-  try {
-    const user = await getCurrentUser();
-
-    if (!user) return;
-
-    const { error } = await supabase
-      .from("play_history")
-      .delete()
-      .eq("user_id", user.id);
-
-    if (error) throw error;
-  } catch (err) {
-    console.error("Clear History Error:", err);
-  }
+export const addSongToHistory = async (song) => {
+  if (!song) return;
+  const history = getLocalHistory();
+  const trackId = song.spotifyId || song.id;
+  const filtered = history.filter((item) => (item.spotifyId || item.id) !== trackId);
+  setLocalHistory([{ ...song, listenedAt: new Date().toISOString() }, ...filtered]);
 };
 
-// ==========================================
-// CLEAR RECENTLY PLAYED
-// ==========================================
-export const clearRecentlyPlayed = async () => {
-  try {
-    const user = await getCurrentUser();
+export const getListeningHistory = async () => {
+  return getLocalHistory();
+};
 
-    if (!user) return;
+export const getRecentlyPlayed = async (limit = 10) => {
+  const history = getLocalHistory();
+  return history.slice(0, limit);
+};
 
-    const { error } = await supabase
-      .from("recently_played")
-      .delete()
-      .eq("user_id", user.id);
-
-    if (error) throw error;
-  } catch (err) {
-    console.error("Clear Recently Played Error:", err);
-  }
+export const clearHistory = async () => {
+  localStorage.removeItem(LOCAL_HISTORY_KEY);
 };

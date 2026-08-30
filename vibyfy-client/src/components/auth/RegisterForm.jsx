@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { signUp } from "../../services/authService";
-import { ensureProfile } from "../../services/profileService";
+import { signUp, formatAuthError } from "../../services/authService";
 import VibyfyLogo from "../brand/VibyfyLogo";
 import toast from "react-hot-toast";
 
@@ -17,19 +16,36 @@ const RegisterForm = () => {
   const handleRegister = async (e) => {
     e.preventDefault();
 
+    if (loading) return;
+
+    if (!name.trim()) {
+      toast.error("Please enter your full name.");
+      return;
+    }
+
+    if (!email.trim()) {
+      toast.error("Please enter a valid email address.");
+      return;
+    }
+
+    if (password.length < 6) {
+      toast.error("Password must be at least 6 characters long.");
+      return;
+    }
+
     if (password !== confirmPassword) {
-      toast.error("Passwords do not match.");
+      toast.error("Passwords do not match. Please retype password.");
       return;
     }
 
     try {
       setLoading(true);
-      const { user } = await signUp(email, password, name);
-      await ensureProfile(user, { name });
-      toast.success("Account created successfully 🎉");
+      await signUp(email, password, name.trim());
+      toast.success("Account created successfully! Welcome to VIBYFY 🎉");
       navigate("/");
     } catch (err) {
-      toast.error(err.message || "Failed to create account");
+      console.error("Registration error:", err);
+      toast.error(formatAuthError(err));
     } finally {
       setLoading(false);
     }
@@ -38,7 +54,7 @@ const RegisterForm = () => {
   return (
     <form
       onSubmit={handleRegister}
-      className="bg-slate-900/90 border border-slate-800 p-8 md:p-10 rounded-3xl w-full max-w-md shadow-2xl backdrop-blur-xl space-y-6"
+      className="bg-slate-900/90 border border-slate-800 p-8 md:p-10 rounded-3xl w-full max-w-md shadow-2xl backdrop-blur-xl space-y-6 select-none"
     >
       <div className="flex flex-col items-center text-center space-y-2">
         <VibyfyLogo size="large" showText={true} />
@@ -61,6 +77,7 @@ const RegisterForm = () => {
             className="w-full p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-white placeholder-slate-500 focus:border-purple-500 outline-none text-sm transition"
             value={name}
             onChange={(e) => setName(e.target.value)}
+            disabled={loading}
             required
           />
         </div>
@@ -75,13 +92,14 @@ const RegisterForm = () => {
             className="w-full p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-white placeholder-slate-500 focus:border-purple-500 outline-none text-sm transition"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            disabled={loading}
             required
           />
         </div>
 
         <div>
           <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-            Password
+            Password (min 6 characters)
           </label>
           <input
             type="password"
@@ -89,6 +107,8 @@ const RegisterForm = () => {
             className="w-full p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-white placeholder-slate-500 focus:border-purple-500 outline-none text-sm transition"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            disabled={loading}
+            minLength={6}
             required
           />
         </div>
@@ -103,6 +123,8 @@ const RegisterForm = () => {
             className="w-full p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-white placeholder-slate-500 focus:border-purple-500 outline-none text-sm transition"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
+            disabled={loading}
+            minLength={6}
             required
           />
         </div>
@@ -111,9 +133,9 @@ const RegisterForm = () => {
       <button
         type="submit"
         disabled={loading}
-        className="w-full bg-gradient-to-r from-purple-600 via-pink-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 text-white font-extrabold py-3.5 rounded-xl shadow-lg shadow-purple-600/30 text-sm transition"
+        className="w-full bg-gradient-to-r from-purple-600 via-pink-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 text-white font-extrabold py-3.5 rounded-xl shadow-lg shadow-purple-600/30 text-sm transition disabled:opacity-50"
       >
-        {loading ? "Creating Account..." : "Create VIBYFY Account"}
+        {loading ? "Creating Account & User Profile..." : "Create VIBYFY Account"}
       </button>
 
       <p className="text-slate-400 text-center text-xs">

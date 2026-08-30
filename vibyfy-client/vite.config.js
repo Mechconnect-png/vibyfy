@@ -16,7 +16,7 @@ export default defineConfig({
             if (id.includes('react-router-dom') || id.includes('/react/') || id.includes('/react-dom/')) {
               return 'vendor_react';
             }
-            if (id.includes('@supabase')) return 'vendor_supabase';
+            if (id.includes('firebase')) return 'vendor_firebase';
             if (id.includes('framer-motion')) return 'vendor_motion';
             if (id.includes('recharts')) return 'vendor_charts';
             if (id.includes('howler')) return 'vendor_audio';

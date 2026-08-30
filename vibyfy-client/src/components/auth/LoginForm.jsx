@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { signIn } from "../../services/authService";
+import { signIn, formatAuthError } from "../../services/authService";
 import VibyfyLogo from "../brand/VibyfyLogo";
 import toast from "react-hot-toast";
 
@@ -14,13 +14,21 @@ const LoginForm = () => {
   const handleLogin = async (e) => {
     e.preventDefault();
 
+    if (loading) return;
+
+    if (!email.trim() || !password) {
+      toast.error("Please fill in all fields.");
+      return;
+    }
+
     try {
       setLoading(true);
       await signIn(email, password);
-      toast.success("Welcome back 👋");
+      toast.success("Welcome back to VIBYFY 👋");
       navigate("/");
     } catch (err) {
-      toast.error(err.message || "Failed to sign in");
+      console.error("Login error:", err);
+      toast.error(formatAuthError(err));
     } finally {
       setLoading(false);
     }
@@ -29,7 +37,7 @@ const LoginForm = () => {
   return (
     <form
       onSubmit={handleLogin}
-      className="bg-slate-900/90 border border-slate-800 p-8 md:p-10 rounded-3xl w-full max-w-md shadow-2xl backdrop-blur-xl space-y-6"
+      className="bg-slate-900/90 border border-slate-800 p-8 md:p-10 rounded-3xl w-full max-w-md shadow-2xl backdrop-blur-xl space-y-6 select-none"
     >
       <div className="flex flex-col items-center text-center space-y-2">
         <VibyfyLogo size="large" showText={true} />
@@ -52,6 +60,7 @@ const LoginForm = () => {
             className="w-full p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-white placeholder-slate-500 focus:border-purple-500 outline-none text-sm transition"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            disabled={loading}
             required
           />
         </div>
@@ -66,6 +75,7 @@ const LoginForm = () => {
             className="w-full p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-white placeholder-slate-500 focus:border-purple-500 outline-none text-sm transition"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            disabled={loading}
             required
           />
         </div>
@@ -74,7 +84,7 @@ const LoginForm = () => {
       <button
         type="submit"
         disabled={loading}
-        className="w-full bg-gradient-to-r from-purple-600 via-pink-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 text-white font-extrabold py-3.5 rounded-xl shadow-lg shadow-purple-600/30 text-sm transition"
+        className="w-full bg-gradient-to-r from-purple-600 via-pink-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 text-white font-extrabold py-3.5 rounded-xl shadow-lg shadow-purple-600/30 text-sm transition disabled:opacity-50"
       >
         {loading ? "Authenticating..." : "Login to VIBYFY"}
       </button>

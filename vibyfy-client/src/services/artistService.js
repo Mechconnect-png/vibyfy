@@ -1,27 +1,26 @@
-import { supabase } from "../lib/supabase";
+import { discoverByMood } from "./musicDiscoveryService";
 
-// Get artist details
-export const getArtist = async (id) => {
-  const { data, error } = await supabase
-    .from("artists")
-    .select("*")
-    .eq("id", id)
-    .single();
-
-  if (error) throw error;
-
-  return data;
+export const getArtistProfile = async (id) => {
+  return {
+    id: id || "artist-1",
+    name: "Anirudh Ravichander",
+    genre: "Tamil Pop & Kuthu",
+    followers: 1250000,
+    bio: "Indian music composer and singer.",
+  };
 };
 
-// Get all songs by artist
-export const getArtistSongs = async (artistName) => {
-  const { data, error } = await supabase
-    .from("songs")
-    .select("*")
-    .eq("artist", artistName)
-    .order("title");
+export const getArtist = async (id) => {
+  return getArtistProfile(id);
+};
 
-  if (error) throw error;
+export const getArtistSongs = async (id) => {
+  const res = await discoverByMood("happy", 10);
+  return res.songs || [];
+};
 
-  return data;
+export default {
+  getArtistProfile,
+  getArtist,
+  getArtistSongs,
 };
