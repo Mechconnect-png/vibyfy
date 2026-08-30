@@ -1,7 +1,7 @@
 import axios from "axios";
 import { getSpotifyWebUrl, validateTrackIdentity } from "./spotifyService";
 
-const API_BASE_URL = "http://localhost:5000/api/music";
+const API_BASE_URL = `${import.meta.env.VITE_API_URL}/api/music`;
 
 /**
  * Frontend Canonical Track Normalizer

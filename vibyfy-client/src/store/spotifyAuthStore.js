@@ -2,7 +2,7 @@ import { create } from "zustand";
 import axios from "axios";
 import toast from "react-hot-toast";
 
-const API_BASE_URL = "http://localhost:5000/api/spotify";
+const API_BASE_URL = `${import.meta.env.VITE_API_URL}/api/spotify`;
 
 export const useSpotifyAuthStore = create((set, get) => ({
   discoveryConnected: true,

@@ -2,7 +2,7 @@ import { create } from "zustand";
 import axios from "axios";
 import useSubscriptionStore from "./subscriptionStore";
 
-const API_BASE_URL = "http://localhost:5000/api/usage";
+const API_BASE_URL = `${import.meta.env.VITE_API_URL}/api/usage`;
 const BASE_DAILY_LIMIT = 5;
 
 const useUsageStore = create((set, get) => ({

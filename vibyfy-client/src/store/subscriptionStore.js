@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import axios from "axios";
 
-const API_BASE_URL = "http://localhost:5000/api/usage";
+const API_BASE_URL = `${import.meta.env.VITE_API_URL}/api/usage`;
 
 const useSubscriptionStore = create((set, get) => ({
   plan: "free",

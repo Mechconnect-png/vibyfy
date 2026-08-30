@@ -23,7 +23,7 @@ export const SpotifyCallback = () => {
       toast.loading("Authenticating Spotify Player Session...", { id: "sp-oauth" });
 
       axios
-        .post("http://localhost:5000/api/spotify/callback", { code })
+        .post(`${import.meta.env.VITE_API_URL}/api/spotify/callback`, { code })
         .then((res) => {
           if (res.data && res.data.userAccessToken) {
             localStorage.setItem("vibyfy_spotify_user_token", res.data.userAccessToken);
