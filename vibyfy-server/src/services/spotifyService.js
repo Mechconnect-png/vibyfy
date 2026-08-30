@@ -50,7 +50,7 @@ export const getSpotifyAccessToken = async () => {
     }
   } catch (error) {
     if (!hasLoggedStatus) {
-      console.log("ℹ️ Running VIBYFY Discovery Engine");
+      console.log("ℹ️ Running VIBYFY Discovery Engine (Auth Error, Using Fallback)");
       hasLoggedStatus = true;
     }
     return null;
@@ -73,11 +73,14 @@ export const normalizeSpotifyTrack = (track, requestedMood = "neutral") => {
     : [{ id: "", name: track.artist || "Unknown Artist" }];
 
   const primaryArtist = artistsList.map((a) => a.name).join(", ");
-  const query = encodeURIComponent(`${title} ${primaryArtist}`);
-  const spotifyUrl = track.external_urls?.spotify || track.externalUrl || track.spotifyUrl || `https://open.spotify.com/search/${query}`;
-  const spotifyUri = track.uri || track.spotifyUri || `spotify:search:${query}`;
+  const queryStr = encodeURIComponent(`${title} ${primaryArtist}`);
+  
+  // Use exact Spotify external URL and Spotify URI if present
+  const spotifyUrl = track.external_urls?.spotify || track.externalUrl || track.spotifyUrl || `https://open.spotify.com/search/${queryStr}`;
+  const spotifyUri = track.uri || track.spotifyUri || (track.id ? `spotify:track:${track.id}` : `spotify:search:${queryStr}`);
 
   const moodStr = typeof requestedMood === "string" ? requestedMood : "neutral";
+  const coverUrl = track.album?.images?.[0]?.url || track.images?.[0]?.url || track.image || track.cover || "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&auto=format&fit=crop";
 
   return {
     id: trackId,
@@ -85,9 +88,9 @@ export const normalizeSpotifyTrack = (track, requestedMood = "neutral") => {
     title,
     artist: primaryArtist,
     artists: artistsList,
-    album: track.album ? (typeof track.album === "string" ? track.album : track.album.name) : "Spotify Single",
-    image: track.album?.images?.[0]?.url || track.image || track.cover || "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&auto=format&fit=crop",
-    cover: track.album?.images?.[0]?.url || track.image || track.cover || "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&auto=format&fit=crop",
+    album: track.album ? (typeof track.album === "string" ? track.album : track.album.name) : "Spotify Release",
+    image: coverUrl,
+    cover: coverUrl,
     externalUrl: spotifyUrl,
     spotifyUrl: spotifyUrl,
     spotifyUri: spotifyUri,
@@ -101,7 +104,7 @@ export const normalizeSpotifyTrack = (track, requestedMood = "neutral") => {
 };
 
 /**
- * Execute single query against Spotify Search API supporting tracks, artists, albums, playlists
+ * Execute query against Spotify Search API supporting tracks, artists, albums, playlists
  */
 export const searchSpotifyQuery = async (query, limit = 20, offset = 0, type = "track") => {
   const token = await getSpotifyAccessToken();
@@ -126,6 +129,46 @@ export const searchSpotifyQuery = async (query, limit = 20, offset = 0, type = "
     if (response.data) {
       if (response.data.tracks && response.data.tracks.items) {
         return response.data.tracks.items;
+      }
+      if (response.data.artists && response.data.artists.items) {
+        return response.data.artists.items.map((a) => ({
+          id: a.id,
+          name: a.name,
+          title: a.name,
+          artist: "Artist",
+          artists: [{ id: a.id, name: a.name }],
+          album: "Spotify Artist Profile",
+          images: a.images,
+          external_urls: a.external_urls,
+          uri: a.uri,
+          popularity: a.popularity,
+        }));
+      }
+      if (response.data.albums && response.data.albums.items) {
+        return response.data.albums.items.map((alb) => ({
+          id: alb.id,
+          name: alb.name,
+          title: alb.name,
+          artist: alb.artists ? alb.artists.map((x) => x.name).join(", ") : "Various Artists",
+          artists: alb.artists,
+          album: alb.name,
+          images: alb.images,
+          external_urls: alb.external_urls,
+          uri: alb.uri,
+        }));
+      }
+      if (response.data.playlists && response.data.playlists.items) {
+        return response.data.playlists.items.filter(Boolean).map((pl) => ({
+          id: pl.id,
+          name: pl.name,
+          title: pl.name,
+          artist: pl.owner ? pl.owner.display_name : "Spotify User",
+          artists: [{ id: "", name: pl.owner ? pl.owner.display_name : "Spotify User" }],
+          album: "Spotify Playlist",
+          images: pl.images,
+          external_urls: pl.external_urls,
+          uri: pl.uri,
+        }));
       }
     }
   } catch (err) {
@@ -239,7 +282,7 @@ export const discoverReliefService = async (fromMood = "sad", toMood = "calm", l
 };
 
 /**
- * Direct search query execution with pagination returning at least 20 results
+ * Direct search query execution with pagination (Returns exact search matches or filtered results; NEVER dumps unrelated fallback songs)
  */
 export const searchMusicService = async (query, limit = 20, offset = 0, type = "track") => {
   const safeLimit = Math.max(1, parseInt(limit, 10) || 20);
@@ -259,15 +302,13 @@ export const searchMusicService = async (query, limit = 20, offset = 0, type = "
     }
   }
 
+  // Fallback search strictly filters by query keywords; if 0 match, returns empty list []
   if (allNormalizedTracks.length === 0) {
     const catalog = getMockSpotifyTracks("neutral");
     const qLower = query.trim().toLowerCase();
     allNormalizedTracks = catalog.filter(
       (s) => s.title.toLowerCase().includes(qLower) || s.artist.toLowerCase().includes(qLower) || s.album.toLowerCase().includes(qLower)
     );
-    if (allNormalizedTracks.length === 0) {
-      allNormalizedTracks = catalog;
-    }
   }
 
   const sliced = allNormalizedTracks.slice(safeOffset, safeOffset + safeLimit);
@@ -299,16 +340,6 @@ const getMockSpotifyTracks = (mood = "neutral") => {
     { id: "sp-h8", title: "Private Party", artist: "Anirudh Ravichander, Jonita Gandhi", album: "Don", mood: "happy", externalUrl: "https://open.spotify.com/search/Private%20Party%20Don" },
     { id: "sp-h9", title: "Vaathi Raid", artist: "Anirudh Ravichander, Arivu", album: "Master", mood: "happy", externalUrl: "https://open.spotify.com/search/Vaathi%20Raid%20Master" },
     { id: "sp-h10", title: "Surviva", artist: "Anirudh Ravichander, Yogi B", album: "Vivegam", mood: "happy", externalUrl: "https://open.spotify.com/search/Surviva%20Vivegam" },
-    { id: "sp-h11", title: "Marana Mass", artist: "Anirudh Ravichander, SPB", album: "Petta", mood: "happy", externalUrl: "https://open.spotify.com/search/Marana%20Mass%20Petta" },
-    { id: "sp-h12", title: "Chitti Dance", artist: "Anirudh Ravichander", album: "Master", mood: "happy", externalUrl: "https://open.spotify.com/search/Master%20Anirudh" },
-    { id: "sp-h13", title: "Illuminati", artist: "Sushin Shyam, Dabzee", album: "Aavesham", mood: "happy", externalUrl: "https://open.spotify.com/search/Illuminati%20Aavesham" },
-    { id: "sp-h14", title: "Manasilaayo", artist: "Anirudh Ravichander, Malaysia Vasudevan", album: "Vettaiyan", mood: "happy", externalUrl: "https://open.spotify.com/search/Manasilaayo%20Vettaiyan" },
-    { id: "sp-h15", title: "Spark", artist: "Yuvan Shankar Raja, Vrusha", album: "GOAT", mood: "happy", externalUrl: "https://open.spotify.com/search/Spark%20GOAT" },
-    { id: "sp-h16", title: "Matta", artist: "Yuvan Shankar Raja, Vijay", album: "GOAT", mood: "happy", externalUrl: "https://open.spotify.com/search/Matta%20GOAT" },
-    { id: "sp-h17", title: "Whistle Podu", artist: "Thalapathy Vijay, Yuvan Shankar Raja", album: "GOAT", mood: "happy", externalUrl: "https://open.spotify.com/search/Whistle%20Podu%20GOAT" },
-    { id: "sp-h18", title: "Chuttamalle", artist: "Anirudh Ravichander, Shilpa Rao", album: "Devara", mood: "happy", externalUrl: "https://open.spotify.com/search/Chuttamalle%20Devara" },
-    { id: "sp-h19", title: "Fear Song", artist: "Anirudh Ravichander", album: "Devara", mood: "happy", externalUrl: "https://open.spotify.com/search/Fear%20Song%20Devara" },
-    { id: "sp-h20", title: "Soukaath", artist: "Anirudh Ravichander", album: "Devara", mood: "happy", externalUrl: "https://open.spotify.com/search/Devara%20Anirudh" },
 
     // SAD TRACKS
     { id: "sp-s1", title: "Nenjame", artist: "Anirudh Ravichander", album: "Doctor", mood: "sad", externalUrl: "https://open.spotify.com/search/Nenjame%20Doctor%20Anirudh" },
@@ -316,29 +347,16 @@ const getMockSpotifyTracks = (mood = "neutral") => {
     { id: "sp-s3", title: "Kadhaippoma", artist: "Sid Sriram, Leon James", album: "Oh My Kadavule", mood: "sad", externalUrl: "https://open.spotify.com/search/Kadhaippoma%20Sid%20Sriram" },
     { id: "sp-s4", title: "Po Nee Po", artist: "Anirudh Ravichander, Mohit Chauhan", album: "3", mood: "sad", externalUrl: "https://open.spotify.com/search/Po%20Nee%20Po%20Anirudh" },
     { id: "sp-s5", title: "Maruvaarthai", artist: "Sid Sriram, Darbuka Siva", album: "Enai Noki Paayum Thota", mood: "sad", externalUrl: "https://open.spotify.com/search/Maruvaarthai%20Sid%20Sriram" },
-    { id: "sp-s6", title: "Poraanuru", artist: "A. R. Rahman, Hariharan", album: "Raavanan", mood: "sad", externalUrl: "https://open.spotify.com/search/Poraanuru%20AR%20Rahman" },
-    { id: "sp-s7", title: "Kanave Kanave", artist: "Anirudh Ravichander", album: "David", mood: "sad", externalUrl: "https://open.spotify.com/search/Kanave%20Kanave%20Anirudh" },
-    { id: "sp-s8", title: "Unnaal Ennaal", artist: "A. R. Rahman, Haricharan", album: "Theri", mood: "sad", externalUrl: "https://open.spotify.com/search/Unnaal%20Ennaal%20Theri" },
-    { id: "sp-s9", title: "Naan Pizhai", artist: "Ravi G, Shashaa Tirupati", album: "Kaathuvaakula Rendu Kaadhal", mood: "sad", externalUrl: "https://open.spotify.com/search/Naan%20Pizhai%20Anirudh" },
-    { id: "sp-s10", title: "Bae", artist: "Aditya R K, Anirudh", album: "Don", mood: "sad", externalUrl: "https://open.spotify.com/search/Bae%20Don%20Anirudh" },
 
     // CALM TRACKS
     { id: "sp-c1", title: "Kannazhaga", artist: "Dhanush, Shruti Haasan, Anirudh", album: "3", mood: "calm", externalUrl: "https://open.spotify.com/search/Kannazhaga%20Dhanush" },
     { id: "sp-c2", title: "Megham Karukatha", artist: "Dhanush, Anirudh Ravichander", album: "Thiruchitrambalam", mood: "calm", externalUrl: "https://open.spotify.com/search/Megham%20Karukatha%20Dhanush" },
     { id: "sp-c3", title: "Inkem Inkem", artist: "Sid Sriram", album: "Geetha Govindam", mood: "calm", externalUrl: "https://open.spotify.com/search/Inkem%20Inkem%20Sid%20Sriram" },
-    { id: "sp-c4", title: "Vaa Seetha", artist: "A. R. Rahman", album: "Ponniyin Selvan", mood: "calm", externalUrl: "https://open.spotify.com/search/Vaa%20Seetha%20AR%20Rahman" },
-    { id: "sp-c5", title: "Neela Vanam", artist: "Kamal Haasan, Devi Sri Prasad", album: "Manmadan Ambu", mood: "calm", externalUrl: "https://open.spotify.com/search/Neela%20Vanam" },
-    { id: "sp-c6", title: "Aathangara Marame", artist: "A. R. Rahman, Mano", album: "Kizhakku Cheemayile", mood: "calm", externalUrl: "https://open.spotify.com/search/Aathangara%20Marame" },
-    { id: "sp-c7", title: "Munbe Vaa", artist: "A. R. Rahman, Shreya Ghoshal", album: "Sillunu Oru Kaadhal", mood: "calm", externalUrl: "https://open.spotify.com/search/Munbe%20Vaa%20AR%20Rahman" },
-    { id: "sp-c8", title: "Moongil Thottam", artist: "A. R. Rahman, Abhay Jodhpurkar", album: "Kadal", mood: "calm", externalUrl: "https://open.spotify.com/search/Moongil%20Thottam" },
 
     // EXCITED TRACKS
     { id: "sp-e1", title: "Naa Ready", artist: "Thalapathy Vijay, Anirudh", album: "Leo", mood: "excited", externalUrl: "https://open.spotify.com/search/Naa%20Ready%20Leo" },
     { id: "sp-e2", title: "Vathi Coming", artist: "Anirudh Ravichander", album: "Master", mood: "excited", externalUrl: "https://open.spotify.com/search/Vathi%20Coming%20Master" },
     { id: "sp-e3", title: "Badass", artist: "Anirudh Ravichander", album: "Leo", mood: "excited", externalUrl: "https://open.spotify.com/search/Badass%20Leo%20Anirudh" },
-    { id: "sp-e4", title: "Hukum - Thalaivar Alappara", artist: "Anirudh Ravichander", album: "Jailer", mood: "excited", externalUrl: "https://open.spotify.com/search/Hukum%20Jailer%20Anirudh" },
-    { id: "sp-e5", title: "Bloody Sweet", artist: "Anirudh Ravichander", album: "Leo", mood: "excited", externalUrl: "https://open.spotify.com/search/Bloody%20Sweet%20Leo" },
-    { id: "sp-e6", title: "Vikram Title Track", artist: "Anirudh Ravichander", album: "Vikram", mood: "excited", externalUrl: "https://open.spotify.com/search/Vikram%20Title%20Track" },
   ];
 
   const target = targetMoodStr.toLowerCase();

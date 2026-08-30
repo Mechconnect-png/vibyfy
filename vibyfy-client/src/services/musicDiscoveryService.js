@@ -105,7 +105,7 @@ export const getReliefMusicJourney = async (fromMood, toMood, limit = 10, offset
 };
 
 /**
- * Global Spotify Search Service with Pagination (Returning at least 20 results)
+ * Global Spotify Search Service with Pagination (Returns exact query results only)
  */
 export const searchMusic = async (query, limit = 20, offset = 0, type = "track") => {
   if (!query || query.trim() === "") return { songs: [], hasMore: false, total: 0 };
@@ -128,16 +128,18 @@ export const searchMusic = async (query, limit = 20, offset = 0, type = "track")
     console.warn("Backend Search Service notice:", error.message);
   }
 
+  // Strict fallback filtering: match exact title/artist keywords only
+  const qLower = query.trim().toLowerCase();
   const fallback = getFallbackSongsByMood("neutral").filter(
     (s) =>
-      s.title.toLowerCase().includes(query.toLowerCase()) ||
-      s.artist.toLowerCase().includes(query.toLowerCase()) ||
-      s.album.toLowerCase().includes(query.toLowerCase())
+      s.title.toLowerCase().includes(qLower) ||
+      s.artist.toLowerCase().includes(qLower) ||
+      s.album.toLowerCase().includes(qLower)
   );
   const sliced = fallback.slice(offset, offset + limit);
 
   return {
-    songs: sliced.length > 0 ? sliced : getFallbackSongsByMood("neutral").slice(0, limit),
+    songs: sliced,
     hasMore: offset + limit < fallback.length,
     total: fallback.length,
   };
