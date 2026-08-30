@@ -1,18 +1,41 @@
-import React from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Search, Sparkles, User, ShieldCheck, Heart, Crown } from "lucide-react";
+import { Search, Heart, Crown, LogOut, User, Sparkles, ChevronDown } from "lucide-react";
 import VibyfyLogo from "../brand/VibyfyLogo";
 import useMoodStore from "../../store/moodStore";
 import { getMoodTheme } from "../../theme/moods";
+import useAuth from "../../hooks/useAuth";
 
 export const Navbar = ({ onOpenPremium }) => {
   const navigate = useNavigate();
+  const { user, userProfile, logout } = useAuth();
   const { lockedMood, isLocked, liveMood } = useMoodStore();
   const currentMood = isLocked ? lockedMood : liveMood;
   const moodTheme = getMoodTheme(currentMood);
 
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  const displayName = user?.displayName || userProfile?.fullName || (user?.email ? user.email.split("@")[0] : "Listener");
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleLogout = async () => {
+    setDropdownOpen(false);
+    await logout();
+    navigate("/login");
+  };
+
   return (
-    <header className="sticky top-0 z-40 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800/80 px-4 md:px-8 py-3.5 flex items-center justify-between">
+    <header className="sticky top-0 z-40 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800/80 px-4 md:px-8 py-3.5 flex items-center justify-between select-none">
       {/* Brand Logo Link */}
       <Link to="/" className="flex items-center gap-2 group">
         <VibyfyLogo size="medium" showText={true} />
@@ -61,16 +84,80 @@ export const Navbar = ({ onOpenPremium }) => {
           <span>VIBYFY Pro</span>
         </button>
 
-        {/* User Profile Link */}
-        <Link
-          to="/profile"
-          className="flex items-center gap-2 p-1.5 pr-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 transition"
-        >
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-purple-600 to-pink-500 flex items-center justify-center text-white text-xs font-bold">
-            V
+        {/* AUTHENTICATED USER DROPDOWN VS LOGGED OUT BUTTONS */}
+        {user ? (
+          <div className="relative" ref={dropdownRef}>
+            <button
+              onClick={() => setDropdownOpen((prev) => !prev)}
+              className="flex items-center gap-2 p-1.5 pr-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 transition text-left"
+            >
+              <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-purple-600 to-pink-500 flex items-center justify-center text-white text-xs font-bold uppercase">
+                {displayName.charAt(0)}
+              </div>
+              <div className="hidden sm:flex flex-col">
+                <span className="text-[10px] text-slate-400 font-semibold leading-none">Hello,</span>
+                <span className="text-xs font-bold text-slate-200 truncate max-w-[100px]">{displayName}</span>
+              </div>
+              <ChevronDown size={14} className="text-slate-400 ml-1" />
+            </button>
+
+            {/* Dropdown Menu */}
+            {dropdownOpen && (
+              <div className="absolute right-0 mt-2 w-52 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl p-2 z-50 space-y-1 backdrop-blur-xl">
+                <div className="px-3 py-2 border-b border-slate-800 mb-1">
+                  <p className="text-xs font-bold text-white truncate">{displayName}</p>
+                  <p className="text-[10px] text-slate-400 truncate">{user.email}</p>
+                  <span className="inline-block mt-1 text-[9px] font-bold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/30 uppercase">
+                    {userProfile?.plan || "Free Plan"}
+                  </span>
+                </div>
+
+                <Link
+                  to="/profile"
+                  onClick={() => setDropdownOpen(false)}
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-300 hover:bg-slate-800 hover:text-white transition"
+                >
+                  <User size={15} />
+                  <span>My Profile</span>
+                </Link>
+
+                <button
+                  onClick={() => {
+                    setDropdownOpen(false);
+                    onOpenPremium();
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-amber-400 hover:bg-slate-800 transition"
+                >
+                  <Crown size={15} />
+                  <span>Plan / Upgrade Pro</span>
+                </button>
+
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-red-400 hover:bg-red-500/10 transition"
+                >
+                  <LogOut size={15} />
+                  <span>Logout</span>
+                </button>
+              </div>
+            )}
           </div>
-          <span className="hidden sm:inline text-xs font-bold text-slate-200">Account</span>
-        </Link>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Link
+              to="/login"
+              className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-xs font-bold text-slate-200 border border-slate-800 transition"
+            >
+              Login
+            </Link>
+            <Link
+              to="/register"
+              className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-xs font-bold text-white shadow-md shadow-purple-600/30 transition"
+            >
+              Create Account
+            </Link>
+          </div>
+        )}
       </div>
     </header>
   );

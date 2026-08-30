@@ -15,7 +15,7 @@ export const getSpotifyAccessToken = async () => {
 
   if (!clientId || !clientSecret) {
     if (!hasLoggedStatus) {
-      console.log("ℹ️ Running VIBYFY Discovery Engine");
+      console.log("ℹ️ Running VIBYFY Discovery Engine (Using Catalog Fallback)");
       hasLoggedStatus = true;
     }
     return null;
@@ -67,14 +67,14 @@ export const normalizeSpotifyTrack = (track, requestedMood = "neutral") => {
 
   const trackId = track.id || track.spotifyId || `sp-${Math.random().toString(36).substring(2, 9)}`;
   const title = track.name || track.title || "Untitled Track";
-  
+
   const artistsList = track.artists
-    ? track.artists.map((a) => (typeof a === "string" ? { name: a } : { id: a.id || "", name: a.name }))
+    ? track.artists.map((a) => (typeof a === "string" ? { id: "", name: a } : { id: a.id || "", name: a.name }))
     : [{ id: "", name: track.artist || "Unknown Artist" }];
-  
+
   const primaryArtist = artistsList.map((a) => a.name).join(", ");
   const query = encodeURIComponent(`${title} ${primaryArtist}`);
-  const spotifyUrl = track.external_urls?.spotify || track.externalUrl || `https://open.spotify.com/search/${query}`;
+  const spotifyUrl = track.external_urls?.spotify || track.externalUrl || track.spotifyUrl || `https://open.spotify.com/search/${query}`;
   const spotifyUri = track.uri || track.spotifyUri || `spotify:search:${query}`;
 
   const moodStr = typeof requestedMood === "string" ? requestedMood : "neutral";
@@ -89,6 +89,7 @@ export const normalizeSpotifyTrack = (track, requestedMood = "neutral") => {
     image: track.album?.images?.[0]?.url || track.image || track.cover || "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&auto=format&fit=crop",
     cover: track.album?.images?.[0]?.url || track.image || track.cover || "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&auto=format&fit=crop",
     externalUrl: spotifyUrl,
+    spotifyUrl: spotifyUrl,
     spotifyUri: spotifyUri,
     previewUrl: track.preview_url || track.previewUrl || null,
     durationMs: track.duration_ms || track.durationMs || 240000,
@@ -100,13 +101,13 @@ export const normalizeSpotifyTrack = (track, requestedMood = "neutral") => {
 };
 
 /**
- * Execute single query against Spotify Search API
+ * Execute single query against Spotify Search API supporting tracks, artists, albums, playlists
  */
-export const searchSpotifyQuery = async (query, limit = 10, offset = 0) => {
+export const searchSpotifyQuery = async (query, limit = 20, offset = 0, type = "track") => {
   const token = await getSpotifyAccessToken();
   if (!token) return null;
 
-  const safeLimit = Math.max(1, Math.min(50, parseInt(limit, 10) || 10));
+  const safeLimit = Math.max(1, Math.min(50, parseInt(limit, 10) || 20));
   const safeOffset = Math.max(0, parseInt(offset, 10) || 0);
 
   try {
@@ -116,17 +117,19 @@ export const searchSpotifyQuery = async (query, limit = 10, offset = 0) => {
       },
       params: {
         q: query,
-        type: "track",
+        type: type || "track",
         limit: safeLimit,
         offset: safeOffset,
       },
     });
 
-    if (response.data && response.data.tracks && response.data.tracks.items) {
-      return response.data.tracks.items;
+    if (response.data) {
+      if (response.data.tracks && response.data.tracks.items) {
+        return response.data.tracks.items;
+      }
     }
   } catch (err) {
-    return null;
+    console.warn("Spotify API query search notice:", err.message);
   }
 
   return [];
@@ -149,7 +152,7 @@ export const discoverByMoodService = async (mood = "neutral", limit = 10, offset
     const queryOffset = Math.floor(safeOffset / Math.max(1, queries.length));
 
     for (const query of queries) {
-      const fetched = await searchSpotifyQuery(query, safeLimit, queryOffset);
+      const fetched = await searchSpotifyQuery(query, safeLimit, queryOffset, "track");
       if (fetched && fetched.length > 0) {
         rawTracks = [...rawTracks, ...fetched];
       }
@@ -170,7 +173,6 @@ export const discoverByMoodService = async (mood = "neutral", limit = 10, offset
     allNormalizedTracks = getMockSpotifyTracks(targetMood);
   }
 
-  // Deduplicate and Paginate
   const sliced = allNormalizedTracks.slice(safeOffset, safeOffset + safeLimit);
   const hasMore = safeOffset + safeLimit < allNormalizedTracks.length;
 
@@ -191,7 +193,7 @@ export const discoverReliefService = async (fromMood = "sad", toMood = "calm", l
   const fromQueries = getQueriesForMood(fromMood) || ["Tamil sad songs"];
   const toQueries = getQueriesForMood(targetMood) || ["Tamil calm songs"];
   const combinedQueries = [...toQueries.slice(0, 3), ...fromQueries.slice(0, 2)];
-  
+
   const safeLimit = Math.max(1, parseInt(limit, 10) || 10);
   const safeOffset = Math.max(0, parseInt(offset, 10) || 0);
 
@@ -203,7 +205,7 @@ export const discoverReliefService = async (fromMood = "sad", toMood = "calm", l
     const queryOffset = Math.floor(safeOffset / Math.max(1, combinedQueries.length));
 
     for (const query of combinedQueries) {
-      const fetched = await searchSpotifyQuery(query, safeLimit, queryOffset);
+      const fetched = await searchSpotifyQuery(query, safeLimit, queryOffset, "track");
       if (fetched && fetched.length > 0) {
         rawTracks = [...rawTracks, ...fetched];
       }
@@ -237,28 +239,35 @@ export const discoverReliefService = async (fromMood = "sad", toMood = "calm", l
 };
 
 /**
- * Direct search query execution with pagination
+ * Direct search query execution with pagination returning at least 20 results
  */
-export const searchMusicService = async (query, limit = 10, offset = 0) => {
-  const safeLimit = Math.max(1, parseInt(limit, 10) || 10);
+export const searchMusicService = async (query, limit = 20, offset = 0, type = "track") => {
+  const safeLimit = Math.max(1, parseInt(limit, 10) || 20);
   const safeOffset = Math.max(0, parseInt(offset, 10) || 0);
 
-  if (!query) return { data: [], total: 0, limit: safeLimit, offset: safeOffset, hasMore: false };
-  
+  if (!query || !query.trim()) {
+    return { data: [], total: 0, limit: safeLimit, offset: safeOffset, hasMore: false };
+  }
+
   const token = await getSpotifyAccessToken();
   let allNormalizedTracks = [];
 
   if (token) {
-    const rawTracks = await searchSpotifyQuery(query, safeLimit + 10, safeOffset);
+    const rawTracks = await searchSpotifyQuery(query.trim(), safeLimit, safeOffset, type);
     if (rawTracks && rawTracks.length > 0) {
       allNormalizedTracks = rawTracks.map((t) => normalizeSpotifyTrack(t, "search"));
     }
   }
 
   if (allNormalizedTracks.length === 0) {
-    allNormalizedTracks = getMockSpotifyTracks("neutral").filter(
-      (s) => s.title.toLowerCase().includes(query.toLowerCase()) || s.artist.toLowerCase().includes(query.toLowerCase())
+    const catalog = getMockSpotifyTracks("neutral");
+    const qLower = query.trim().toLowerCase();
+    allNormalizedTracks = catalog.filter(
+      (s) => s.title.toLowerCase().includes(qLower) || s.artist.toLowerCase().includes(qLower) || s.album.toLowerCase().includes(qLower)
     );
+    if (allNormalizedTracks.length === 0) {
+      allNormalizedTracks = catalog;
+    }
   }
 
   const sliced = allNormalizedTracks.slice(safeOffset, safeOffset + safeLimit);
@@ -292,6 +301,14 @@ const getMockSpotifyTracks = (mood = "neutral") => {
     { id: "sp-h10", title: "Surviva", artist: "Anirudh Ravichander, Yogi B", album: "Vivegam", mood: "happy", externalUrl: "https://open.spotify.com/search/Surviva%20Vivegam" },
     { id: "sp-h11", title: "Marana Mass", artist: "Anirudh Ravichander, SPB", album: "Petta", mood: "happy", externalUrl: "https://open.spotify.com/search/Marana%20Mass%20Petta" },
     { id: "sp-h12", title: "Chitti Dance", artist: "Anirudh Ravichander", album: "Master", mood: "happy", externalUrl: "https://open.spotify.com/search/Master%20Anirudh" },
+    { id: "sp-h13", title: "Illuminati", artist: "Sushin Shyam, Dabzee", album: "Aavesham", mood: "happy", externalUrl: "https://open.spotify.com/search/Illuminati%20Aavesham" },
+    { id: "sp-h14", title: "Manasilaayo", artist: "Anirudh Ravichander, Malaysia Vasudevan", album: "Vettaiyan", mood: "happy", externalUrl: "https://open.spotify.com/search/Manasilaayo%20Vettaiyan" },
+    { id: "sp-h15", title: "Spark", artist: "Yuvan Shankar Raja, Vrusha", album: "GOAT", mood: "happy", externalUrl: "https://open.spotify.com/search/Spark%20GOAT" },
+    { id: "sp-h16", title: "Matta", artist: "Yuvan Shankar Raja, Vijay", album: "GOAT", mood: "happy", externalUrl: "https://open.spotify.com/search/Matta%20GOAT" },
+    { id: "sp-h17", title: "Whistle Podu", artist: "Thalapathy Vijay, Yuvan Shankar Raja", album: "GOAT", mood: "happy", externalUrl: "https://open.spotify.com/search/Whistle%20Podu%20GOAT" },
+    { id: "sp-h18", title: "Chuttamalle", artist: "Anirudh Ravichander, Shilpa Rao", album: "Devara", mood: "happy", externalUrl: "https://open.spotify.com/search/Chuttamalle%20Devara" },
+    { id: "sp-h19", title: "Fear Song", artist: "Anirudh Ravichander", album: "Devara", mood: "happy", externalUrl: "https://open.spotify.com/search/Fear%20Song%20Devara" },
+    { id: "sp-h20", title: "Soukaath", artist: "Anirudh Ravichander", album: "Devara", mood: "happy", externalUrl: "https://open.spotify.com/search/Devara%20Anirudh" },
 
     // SAD TRACKS
     { id: "sp-s1", title: "Nenjame", artist: "Anirudh Ravichander", album: "Doctor", mood: "sad", externalUrl: "https://open.spotify.com/search/Nenjame%20Doctor%20Anirudh" },

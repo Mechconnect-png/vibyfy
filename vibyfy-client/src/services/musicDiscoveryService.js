@@ -16,7 +16,7 @@ export const normalizeSong = (item) => {
   const album = item.album || "Spotify Single";
   const image = item.image || item.cover || "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&auto=format&fit=crop";
   const query = encodeURIComponent(`${title} ${artist}`);
-  const externalUrl = item.externalUrl || item.external_urls?.spotify || `https://open.spotify.com/search/${query}`;
+  const externalUrl = item.externalUrl || item.spotifyUrl || item.external_urls?.spotify || `https://open.spotify.com/search/${query}`;
   const spotifyUri = item.spotifyUri || item.uri || `spotify:search:${query}`;
 
   return {
@@ -29,6 +29,7 @@ export const normalizeSong = (item) => {
     image,
     cover: image,
     externalUrl,
+    spotifyUrl: externalUrl,
     spotifyUri,
     previewUrl: item.previewUrl || item.preview_url || null,
     durationMs: item.durationMs || item.duration_ms || 240000,
@@ -104,14 +105,14 @@ export const getReliefMusicJourney = async (fromMood, toMood, limit = 10, offset
 };
 
 /**
- * Global Spotify Search Service with Pagination
+ * Global Spotify Search Service with Pagination (Returning at least 20 results)
  */
-export const searchMusic = async (query, limit = 10, offset = 0) => {
+export const searchMusic = async (query, limit = 20, offset = 0, type = "track") => {
   if (!query || query.trim() === "") return { songs: [], hasMore: false, total: 0 };
 
   try {
     const res = await axios.get(`${API_BASE_URL}/search`, {
-      params: { q: query.trim(), limit, offset },
+      params: { q: query.trim(), type, limit, offset },
       timeout: 8000,
     });
 
@@ -130,12 +131,13 @@ export const searchMusic = async (query, limit = 10, offset = 0) => {
   const fallback = getFallbackSongsByMood("neutral").filter(
     (s) =>
       s.title.toLowerCase().includes(query.toLowerCase()) ||
-      s.artist.toLowerCase().includes(query.toLowerCase())
+      s.artist.toLowerCase().includes(query.toLowerCase()) ||
+      s.album.toLowerCase().includes(query.toLowerCase())
   );
   const sliced = fallback.slice(offset, offset + limit);
 
   return {
-    songs: sliced,
+    songs: sliced.length > 0 ? sliced : getFallbackSongsByMood("neutral").slice(0, limit),
     hasMore: offset + limit < fallback.length,
     total: fallback.length,
   };
@@ -156,83 +158,13 @@ export const getRecommendationsForMood = async (lockedMood, targetReliefMood = n
  */
 const getFallbackSongsByMood = (mood) => {
   const sampleTracks = [
-    {
-      id: "sp-arabic-kuthu",
-      spotifyId: "sp-arabic-kuthu",
-      title: "Arabic Kuthu - Halamithi Habibo",
-      artist: "Anirudh Ravichander, Jonita Gandhi",
-      album: "Beast",
-      mood: "happy",
-      image: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&auto=format&fit=crop",
-      externalUrl: "https://open.spotify.com/search/Arabic%20Kuthu%20Anirudh",
-      spotifyUri: "spotify:search:Arabic%20Kuthu%20Anirudh",
-    },
-    {
-      id: "sp-jimikki-ponnu",
-      spotifyId: "sp-jimikki-ponnu",
-      title: "Jimikki Ponnu",
-      artist: "Anirudh Ravichander, Jonita Gandhi",
-      album: "Varisu",
-      mood: "happy",
-      image: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500&auto=format&fit=crop",
-      externalUrl: "https://open.spotify.com/search/Jimikki%20Ponnu%20Varisu",
-      spotifyUri: "spotify:search:Jimikki%20Ponnu%20Varisu",
-    },
-    {
-      id: "sp-naa-ready",
-      spotifyId: "sp-naa-ready",
-      title: "Naa Ready",
-      artist: "Thalapathy Vijay, Anirudh Ravichander",
-      album: "Leo",
-      mood: "excited",
-      image: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500&auto=format&fit=crop",
-      externalUrl: "https://open.spotify.com/search/Naa%20Ready%20Leo%20Vijay",
-      spotifyUri: "spotify:search:Naa%20Ready%20Leo%20Vijay",
-    },
-    {
-      id: "sp-vathi-coming",
-      spotifyId: "sp-vathi-coming",
-      title: "Vathi Coming",
-      artist: "Anirudh Ravichander",
-      album: "Master",
-      mood: "excited",
-      image: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&auto=format&fit=crop",
-      externalUrl: "https://open.spotify.com/search/Vathi%20Coming%20Master",
-      spotifyUri: "spotify:search:Vathi%20Coming%20Master",
-    },
-    {
-      id: "sp-nenjame",
-      spotifyId: "sp-nenjame",
-      title: "Nenjame",
-      artist: "Anirudh Ravichander",
-      album: "Doctor",
-      mood: "sad",
-      image: "https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=500&auto=format&fit=crop",
-      externalUrl: "https://open.spotify.com/search/Nenjame%20Doctor%20Anirudh",
-      spotifyUri: "spotify:search:Nenjame%20Doctor%20Anirudh",
-    },
-    {
-      id: "sp-ennodu-nee",
-      spotifyId: "sp-ennodu-nee",
-      title: "Ennodu Nee Irundhaal",
-      artist: "A. R. Rahman, Sid Sriram",
-      album: "I",
-      mood: "sad",
-      image: "https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=500&auto=format&fit=crop",
-      externalUrl: "https://open.spotify.com/search/Ennodu%20Nee%20Irundhaal%20AR%20Rahman",
-      spotifyUri: "spotify:search:Ennodu%20Nee%20Irundhaal%20AR%20Rahman",
-    },
-    {
-      id: "sp-kannazhaga",
-      spotifyId: "sp-kannazhaga",
-      title: "Kannazhaga",
-      artist: "Dhanush, Shruti Haasan, Anirudh",
-      album: "3",
-      mood: "calm",
-      image: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=500&auto=format&fit=crop",
-      externalUrl: "https://open.spotify.com/search/Kannazhaga%20Dhanush",
-      spotifyUri: "spotify:search:Kannazhaga%20Dhanush",
-    },
+    { id: "sp-arabic-kuthu", spotifyId: "sp-arabic-kuthu", title: "Arabic Kuthu - Halamithi Habibo", artist: "Anirudh Ravichander, Jonita Gandhi", album: "Beast", mood: "happy", image: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&auto=format&fit=crop", externalUrl: "https://open.spotify.com/search/Arabic%20Kuthu%20Anirudh", spotifyUri: "spotify:search:Arabic%20Kuthu%20Anirudh" },
+    { id: "sp-jimikki-ponnu", spotifyId: "sp-jimikki-ponnu", title: "Jimikki Ponnu", artist: "Anirudh Ravichander, Jonita Gandhi", album: "Varisu", mood: "happy", image: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500&auto=format&fit=crop", externalUrl: "https://open.spotify.com/search/Jimikki%20Ponnu%20Varisu", spotifyUri: "spotify:search:Jimikki%20Ponnu%20Varisu" },
+    { id: "sp-naa-ready", spotifyId: "sp-naa-ready", title: "Naa Ready", artist: "Thalapathy Vijay, Anirudh Ravichander", album: "Leo", mood: "excited", image: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500&auto=format&fit=crop", externalUrl: "https://open.spotify.com/search/Naa%20Ready%20Leo%20Vijay", spotifyUri: "spotify:search:Naa%20Ready%20Leo%20Vijay" },
+    { id: "sp-vathi-coming", spotifyId: "sp-vathi-coming", title: "Vathi Coming", artist: "Anirudh Ravichander", album: "Master", mood: "excited", image: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&auto=format&fit=crop", externalUrl: "https://open.spotify.com/search/Vathi%20Coming%20Master", spotifyUri: "spotify:search:Vathi%20Coming%20Master" },
+    { id: "sp-nenjame", spotifyId: "sp-nenjame", title: "Nenjame", artist: "Anirudh Ravichander", album: "Doctor", mood: "sad", image: "https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=500&auto=format&fit=crop", externalUrl: "https://open.spotify.com/search/Nenjame%20Doctor%20Anirudh", spotifyUri: "spotify:search:Nenjame%20Doctor%20Anirudh" },
+    { id: "sp-ennodu-nee", spotifyId: "sp-ennodu-nee", title: "Ennodu Nee Irundhaal", artist: "A. R. Rahman, Sid Sriram", album: "I", mood: "sad", image: "https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=500&auto=format&fit=crop", externalUrl: "https://open.spotify.com/search/Ennodu%20Nee%20Irundhaal%20AR%20Rahman", spotifyUri: "spotify:search:Ennodu%20Nee%20Irundhaal%20AR%20Rahman" },
+    { id: "sp-kannazhaga", spotifyId: "sp-kannazhaga", title: "Kannazhaga", artist: "Dhanush, Shruti Haasan, Anirudh", album: "3", mood: "calm", image: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=500&auto=format&fit=crop", externalUrl: "https://open.spotify.com/search/Kannazhaga%20Dhanush", spotifyUri: "spotify:search:Kannazhaga%20Dhanush" },
   ];
 
   const matched = sampleTracks.filter((s) => s.mood === mood.toLowerCase());

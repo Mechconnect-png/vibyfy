@@ -16,31 +16,32 @@ export class MockAdProvider extends AdProvider {
     super();
     this.currentState = AD_STATES.IDLE;
     this.processedAdCompletionIds = new Set();
+    this.activeTimers = [];
   }
 
   showRewardedAd({ target = "scan", onStateChange, onComplete, onError }) {
-    if (this.currentState !== AD_STATES.IDLE && this.currentState !== AD_STATES.REWARD_GRANTED) {
+    if (this.currentState !== AD_STATES.IDLE && this.currentState !== AD_STATES.REWARD_GRANTED && this.currentState !== AD_STATES.CANCELLED) {
       console.warn("⚠️ Ad request rejected: provider is busy in state", this.currentState);
       if (onError) onError(new Error("Ad provider is currently busy"));
       return;
     }
 
-    // Step 24 Debug Log
-    console.log("👉 STEP 24 DEBUG — AD STARTED:", { target, time: new Date().toISOString() });
+    this.clearActiveTimers();
 
+    console.log("👉 STEP 24 DEBUG — AD STARTED:", { target, time: new Date().toISOString() });
     this.updateState(AD_STATES.REQUESTED, onStateChange);
 
     // Simulate ad loading delay (500ms)
-    setTimeout(() => {
+    const t1 = setTimeout(() => {
       this.updateState(AD_STATES.LOADING, onStateChange);
 
-      setTimeout(() => {
+      const t2 = setTimeout(() => {
         this.updateState(AD_STATES.SHOWING, onStateChange);
 
         // Simulate 3-second interactive ad viewing
-        setTimeout(() => {
+        const t3 = setTimeout(() => {
           const completionId = `ad-${target}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-          
+
           if (this.processedAdCompletionIds.has(completionId)) {
             console.warn("⚠️ Duplicate ad completion ID blocked:", completionId);
             return;
@@ -61,14 +62,31 @@ export class MockAdProvider extends AdProvider {
           }
 
           this.updateState(AD_STATES.REWARD_GRANTED, onStateChange);
-          
-          // Reset to IDLE after 1s
-          setTimeout(() => {
+
+          const t4 = setTimeout(() => {
             this.updateState(AD_STATES.IDLE, onStateChange);
           }, 1000);
+          this.activeTimers.push(t4);
         }, 3000);
+        this.activeTimers.push(t3);
       }, 500);
+      this.activeTimers.push(t2);
     }, 500);
+    this.activeTimers.push(t1);
+  }
+
+  cancelAd(onStateChange) {
+    console.log("⚠️ AD CANCELLED EARLY BY USER");
+    this.clearActiveTimers();
+    this.updateState(AD_STATES.CANCELLED, onStateChange);
+    setTimeout(() => {
+      this.updateState(AD_STATES.IDLE, onStateChange);
+    }, 500);
+  }
+
+  clearActiveTimers() {
+    this.activeTimers.forEach((t) => clearTimeout(t));
+    this.activeTimers = [];
   }
 
   updateState(newState, callback) {

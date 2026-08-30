@@ -35,18 +35,20 @@ export const discoverByMood = async (req, res) => {
 };
 
 /**
- * Controller: GET /api/music/search?q=tamil%20songs&limit=10&offset=0
+ * Controller: GET /api/music/search?q=anirudh&type=track,artist,album,playlist&limit=20
  */
 export const searchMusic = async (req, res) => {
   try {
     const query = req.query.q || "";
-    const limit = parseInt(req.query.limit, 10) || 10;
+    const type = req.query.type || "track";
+    const limit = parseInt(req.query.limit, 10) || 20;
     const offset = parseInt(req.query.offset, 10) || 0;
 
-    const result = await searchMusicService(query, limit, offset);
+    const result = await searchMusicService(query, limit, offset, type);
     return res.json({
       success: true,
       query,
+      type,
       limit: result.limit,
       offset: result.offset,
       hasMore: result.hasMore,

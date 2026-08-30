@@ -1,7 +1,9 @@
 import { createContext, useEffect, useState } from "react";
-import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "../config/firebase";
-import { signOut, getUserProfile } from "../services/authService";
+import { onAuthStateChanged, updateProfile as firebaseUpdateProfile } from "firebase/auth";
+import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
+import { auth, db } from "../config/firebase";
+import { signOut as authSignOut } from "../services/authService";
+import useUsageStore from "../store/usageStore";
 
 export const AuthContext = createContext();
 
@@ -15,14 +17,36 @@ export const AuthProvider = ({ children }) => {
       if (firebaseUser) {
         setUser(firebaseUser);
         try {
-          const profile = await getUserProfile(firebaseUser.uid);
-          setUserProfile(profile);
+          const docRef = doc(db, "users", firebaseUser.uid);
+          const docSnap = await getDoc(docRef);
+          
+          if (docSnap.exists()) {
+            setUserProfile(docSnap.data());
+          } else {
+            // Auto-create missing profile document
+            const newProfile = {
+              uid: firebaseUser.uid,
+              fullName: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "VIBYFY Listener",
+              email: firebaseUser.email,
+              plan: "free",
+              bio: "",
+              photoURL: firebaseUser.photoURL || null,
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+            };
+            await setDoc(docRef, newProfile, { merge: true });
+            setUserProfile(newProfile);
+          }
         } catch (e) {
-          console.warn("User profile fetch notice:", e);
+          console.warn("AuthContext profile load notice:", e.message);
         }
+
+        // Trigger per-user usage store sync
+        useUsageStore.getState().fetchUsageStatus();
       } else {
         setUser(null);
         setUserProfile(null);
+        useUsageStore.getState().resetUsageStore();
       }
       setLoading(false);
     });
@@ -30,8 +54,39 @@ export const AuthProvider = ({ children }) => {
     return () => unsubscribe();
   }, []);
 
+  /**
+   * Update Profile Name & Bio (Syncs to Firebase Auth + Firestore)
+   */
+  const updateUserProfile = async ({ fullName, bio, photoURL }) => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+
+    if (fullName) {
+      await firebaseUpdateProfile(currentUser, { displayName: fullName, photoURL: photoURL || currentUser.photoURL });
+    }
+
+    const docRef = doc(db, "users", currentUser.uid);
+    const updates = {
+      updatedAt: serverTimestamp(),
+    };
+    if (fullName) updates.fullName = fullName;
+    if (bio !== undefined) updates.bio = bio;
+    if (photoURL) updates.photoURL = photoURL;
+
+    await setDoc(docRef, updates, { merge: true });
+
+    setUser({ ...currentUser, displayName: fullName || currentUser.displayName });
+    setUserProfile((prev) => ({ ...prev, ...updates }));
+  };
+
+  /**
+   * Logout Function
+   */
   const logout = async () => {
-    await signOut();
+    await authSignOut();
+    setUser(null);
+    setUserProfile(null);
+    useUsageStore.getState().resetUsageStore();
   };
 
   return (
@@ -40,6 +95,7 @@ export const AuthProvider = ({ children }) => {
         user,
         userProfile,
         loading,
+        updateUserProfile,
         logout,
       }}
     >
