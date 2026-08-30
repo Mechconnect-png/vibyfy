@@ -26,7 +26,7 @@ app.use("/api/spotify", spotifyAuthRoutes);
 app.get("/", (req, res) => {
   res.json({
     success: true,
-    message: "🎵 VIBYFY Spotify-Powered Backend API is Running!",
+    message: "VIBYFY Spotify-Powered Backend API is Running!",
     version: "2.0.0",
     brand: "VIBYFY",
     provider: "Spotify Web API",
@@ -36,6 +36,6 @@ app.get("/", (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`🚀 VIBYFY Spotify Backend Server running on http://localhost:${PORT}`);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`VIBYFY Backend running on port ${PORT}`);
 });
