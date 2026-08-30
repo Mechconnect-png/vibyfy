@@ -5,6 +5,66 @@ import API_URL from "../config/apiConfig";
 const API_BASE_URL = `${API_URL}/api/music`;
 
 /**
+ * String normalization for fuzzy comparison
+ */
+const normalizeStr = (str) => {
+  if (!str) return "";
+  return str
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\w\s]/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
+/**
+ * Intelligent 7-Priority Exact Match Ranking Engine
+ */
+export const rankSearchResults = (tracks, query) => {
+  if (!Array.isArray(tracks) || tracks.length === 0 || !query) return tracks || [];
+
+  const rawQuery = query.trim();
+  const lowerQuery = rawQuery.toLowerCase();
+  const normQuery = normalizeStr(rawQuery);
+
+  const getScore = (track) => {
+    if (!track) return 999;
+
+    const title = track.title || track.name || "";
+    const lowerTitle = title.toLowerCase().trim();
+    const normTitle = normalizeStr(title);
+
+    const artist = track.artist || (Array.isArray(track.artists) ? track.artists.map((a) => (typeof a === "string" ? a : a.name)).join(", ") : "");
+    const lowerArtist = artist.toLowerCase().trim();
+    const normArtist = normalizeStr(artist);
+
+    // PRIORITY 1: Exact track title match
+    if (lowerTitle === lowerQuery) return 1;
+
+    // PRIORITY 2: Case-insensitive exact match
+    if (lowerTitle === lowerQuery) return 2;
+
+    // PRIORITY 3: Normalized match (remove punctuation & extra spaces)
+    if (normTitle === normQuery) return 3;
+
+    // PRIORITY 4: Track title starts with query
+    if (lowerTitle.startsWith(lowerQuery) || normTitle.startsWith(normQuery)) return 4;
+
+    // PRIORITY 5: Track title contains query
+    if (lowerTitle.includes(lowerQuery) || normTitle.includes(normQuery)) return 5;
+
+    // PRIORITY 6: Artist match
+    if (lowerArtist === lowerQuery || normArtist === normQuery || lowerArtist.includes(lowerQuery)) return 6;
+
+    // PRIORITY 7: Partial match
+    return 7;
+  };
+
+  return [...tracks].sort((a, b) => getScore(a) - getScore(b));
+};
+
+/**
  * Frontend Canonical Track Normalizer
  */
 export const normalizeSong = (item) => {
@@ -105,43 +165,52 @@ export const getReliefMusicJourney = async (fromMood, toMood, limit = 10, offset
 };
 
 /**
- * Global Spotify Search Service with Pagination (Returns exact query results only)
+ * Global Spotify Search Service with Pagination & Intelligent Ranking
  */
-export const searchMusic = async (query, limit = 20, offset = 0, type = "track") => {
+export const searchMusic = async (query, limit = 20, offset = 0, type = "track", options = {}) => {
   if (!query || query.trim() === "") return { songs: [], hasMore: false, total: 0 };
+
+  const cleanQuery = query.trim();
 
   try {
     const res = await axios.get(`${API_BASE_URL}/search`, {
-      params: { q: query.trim(), type, limit, offset },
+      params: { q: cleanQuery, type, limit, offset },
+      signal: options.signal,
       timeout: 8000,
     });
 
     if (res.data && res.data.data) {
       const normalized = res.data.data.map(normalizeSong).filter((s) => validateTrackIdentity(s).valid);
+      const ranked = rankSearchResults(normalized, cleanQuery);
+
       return {
-        songs: normalized,
+        songs: ranked,
         hasMore: res.data.hasMore ?? false,
-        total: res.data.total ?? normalized.length,
+        total: res.data.total ?? ranked.length,
       };
     }
   } catch (error) {
+    if (axios.isCancel(error) || error.name === "CanceledError") {
+      throw error;
+    }
     console.warn("Backend Search Service notice:", error.message);
   }
 
-  // Strict fallback filtering: match exact title/artist keywords only
-  const qLower = query.trim().toLowerCase();
+  // Fallback search strictly matches title, artist, or album
+  const qLower = cleanQuery.toLowerCase();
   const fallback = getFallbackSongsByMood("neutral").filter(
     (s) =>
       s.title.toLowerCase().includes(qLower) ||
       s.artist.toLowerCase().includes(qLower) ||
       s.album.toLowerCase().includes(qLower)
   );
-  const sliced = fallback.slice(offset, offset + limit);
+  const rankedFallback = rankSearchResults(fallback, cleanQuery);
+  const sliced = rankedFallback.slice(offset, offset + limit);
 
   return {
     songs: sliced,
-    hasMore: offset + limit < fallback.length,
-    total: fallback.length,
+    hasMore: offset + limit < rankedFallback.length,
+    total: rankedFallback.length,
   };
 };
 

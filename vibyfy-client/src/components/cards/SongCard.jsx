@@ -19,14 +19,9 @@ export const SongCard = ({ song, index = 0 }) => {
   const handleSongClick = (e) => {
     e.stopPropagation();
 
-    // Step 24: Debug logging
-    console.log("👉 STEP 24 DEBUG — CLICKED TRACK:", {
-      spotifyId: trackId,
-      spotifyUri: song.spotifyUri,
-      title: song.title,
-      artist: song.artist,
-      externalUrl: song.externalUrl,
-    });
+    // Step 5: Verification & Console Debugging
+    console.log("👉 CLICKED SONG:", song);
+    console.log("👉 PLAYING URI:", song.spotifyUri || song.externalUrl);
 
     // Update playerStore with exact clicked track object
     playSong(song);
@@ -44,7 +39,7 @@ export const SongCard = ({ song, index = 0 }) => {
     <motion.div
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, delay: Math.min(index * 0.05, 0.4) }}
+      transition={{ duration: 0.35, delay: Math.min(index * 0.04, 0.4) }}
       whileHover={{ y: -4 }}
       onClick={handleSongClick}
       className="group relative bg-slate-900/80 hover:bg-slate-900 border border-slate-800/80 hover:border-purple-500/40 rounded-2xl p-4 transition-all duration-300 shadow-lg hover:shadow-2xl hover:shadow-purple-950/20 flex flex-col justify-between cursor-pointer select-none"
@@ -69,7 +64,7 @@ export const SongCard = ({ song, index = 0 }) => {
           {/* Mood Badge */}
           <div className={`absolute top-2 left-2 px-2.5 py-1 rounded-full text-xs font-semibold backdrop-blur-md flex items-center gap-1 border ${moodTheme.badgeBg}`}>
             <span>{moodTheme.emoji}</span>
-            <span className="capitalize">{song.mood}</span>
+            <span className="capitalize">{song.mood || "music"}</span>
           </div>
 
           {/* Favorite Button */}

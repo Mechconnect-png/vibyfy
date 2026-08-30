@@ -77,7 +77,7 @@ export const normalizeSpotifyTrack = (track, requestedMood = "neutral") => {
   
   // Use exact Spotify external URL and Spotify URI if present
   const spotifyUrl = track.external_urls?.spotify || track.externalUrl || track.spotifyUrl || `https://open.spotify.com/search/${queryStr}`;
-  const spotifyUri = track.uri || track.spotifyUri || (track.id ? `spotify:track:${track.id}` : `spotify:search:${queryStr}`);
+  const spotifyUri = track.uri || track.spotifyUri || (track.id && !track.id.startsWith("sp-") ? `spotify:track:${track.id}` : `spotify:search:${queryStr}`);
 
   const moodStr = typeof requestedMood === "string" ? requestedMood : "neutral";
   const coverUrl = track.album?.images?.[0]?.url || track.images?.[0]?.url || track.image || track.cover || "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&auto=format&fit=crop";
@@ -104,6 +104,66 @@ export const normalizeSpotifyTrack = (track, requestedMood = "neutral") => {
 };
 
 /**
+ * String normalization for fuzzy comparison
+ */
+const normalizeStr = (str) => {
+  if (!str) return "";
+  return str
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\w\s]/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
+/**
+ * Intelligent 7-Priority Exact Match Ranking Engine
+ */
+export const rankSearchResults = (tracks, query) => {
+  if (!Array.isArray(tracks) || tracks.length === 0 || !query) return tracks || [];
+
+  const rawQuery = query.replace(/\s+/g, " ").trim();
+  const lowerQuery = rawQuery.toLowerCase();
+  const normQuery = normalizeStr(rawQuery);
+
+  const getScore = (track) => {
+    if (!track) return 999;
+
+    const title = track.title || track.name || "";
+    const lowerTitle = title.toLowerCase().trim();
+    const normTitle = normalizeStr(title);
+
+    const artist = track.artist || (Array.isArray(track.artists) ? track.artists.map(a => typeof a === "string" ? a : a.name).join(", ") : "");
+    const lowerArtist = artist.toLowerCase().trim();
+    const normArtist = normalizeStr(artist);
+
+    // PRIORITY 1: Exact track title match
+    if (lowerTitle === lowerQuery) return 1;
+
+    // PRIORITY 2: Case-insensitive exact match
+    if (lowerTitle === lowerQuery) return 2;
+
+    // PRIORITY 3: Normalized match (remove punctuation & extra spaces)
+    if (normTitle === normQuery) return 3;
+
+    // PRIORITY 4: Track title starts with query
+    if (lowerTitle.startsWith(lowerQuery) || normTitle.startsWith(normQuery)) return 4;
+
+    // PRIORITY 5: Track title contains query
+    if (lowerTitle.includes(lowerQuery) || normTitle.includes(normQuery)) return 5;
+
+    // PRIORITY 6: Artist match
+    if (lowerArtist === lowerQuery || normArtist === normQuery || lowerArtist.includes(lowerQuery)) return 6;
+
+    // PRIORITY 7: Partial match
+    return 7;
+  };
+
+  return [...tracks].sort((a, b) => getScore(a) - getScore(b));
+};
+
+/**
  * Execute query against Spotify Search API supporting tracks, artists, albums, playlists
  */
 export const searchSpotifyQuery = async (query, limit = 20, offset = 0, type = "track") => {
@@ -112,6 +172,7 @@ export const searchSpotifyQuery = async (query, limit = 20, offset = 0, type = "
 
   const safeLimit = Math.max(1, Math.min(50, parseInt(limit, 10) || 20));
   const safeOffset = Math.max(0, parseInt(offset, 10) || 0);
+  const cleanQuery = query.replace(/\s+/g, " ").trim();
 
   try {
     const response = await axios.get("https://api.spotify.com/v1/search", {
@@ -119,7 +180,7 @@ export const searchSpotifyQuery = async (query, limit = 20, offset = 0, type = "
         Authorization: `Bearer ${token}`,
       },
       params: {
-        q: query,
+        q: cleanQuery,
         type: type || "track",
         limit: safeLimit,
         offset: safeOffset,
@@ -282,7 +343,7 @@ export const discoverReliefService = async (fromMood = "sad", toMood = "calm", l
 };
 
 /**
- * Direct search query execution with pagination (Returns exact search matches or filtered results; NEVER dumps unrelated fallback songs)
+ * Direct search query execution with intelligent exact match ranking (NEVER dumps unrelated fallback songs)
  */
 export const searchMusicService = async (query, limit = 20, offset = 0, type = "track") => {
   const safeLimit = Math.max(1, parseInt(limit, 10) || 20);
@@ -292,11 +353,12 @@ export const searchMusicService = async (query, limit = 20, offset = 0, type = "
     return { data: [], total: 0, limit: safeLimit, offset: safeOffset, hasMore: false };
   }
 
+  const cleanQuery = query.replace(/\s+/g, " ").trim();
   const token = await getSpotifyAccessToken();
   let allNormalizedTracks = [];
 
   if (token) {
-    const rawTracks = await searchSpotifyQuery(query.trim(), safeLimit, safeOffset, type);
+    const rawTracks = await searchSpotifyQuery(cleanQuery, safeLimit, safeOffset, type);
     if (rawTracks && rawTracks.length > 0) {
       allNormalizedTracks = rawTracks.map((t) => normalizeSpotifyTrack(t, "search"));
     }
@@ -305,18 +367,21 @@ export const searchMusicService = async (query, limit = 20, offset = 0, type = "
   // Fallback search strictly filters by query keywords; if 0 match, returns empty list []
   if (allNormalizedTracks.length === 0) {
     const catalog = getMockSpotifyTracks("neutral");
-    const qLower = query.trim().toLowerCase();
+    const normQ = normalizeStr(cleanQuery);
     allNormalizedTracks = catalog.filter(
-      (s) => s.title.toLowerCase().includes(qLower) || s.artist.toLowerCase().includes(qLower) || s.album.toLowerCase().includes(qLower)
+      (s) => normalizeStr(s.title).includes(normQ) || normalizeStr(s.artist).includes(normQ) || normalizeStr(s.album).includes(normQ)
     );
   }
 
-  const sliced = allNormalizedTracks.slice(safeOffset, safeOffset + safeLimit);
-  const hasMore = safeOffset + safeLimit < allNormalizedTracks.length;
+  // Rank results so exact match appears FIRST
+  const rankedTracks = rankSearchResults(allNormalizedTracks, cleanQuery);
+
+  const sliced = rankedTracks.slice(safeOffset, safeOffset + safeLimit);
+  const hasMore = safeOffset + safeLimit < rankedTracks.length;
 
   return {
     data: sliced,
-    total: allNormalizedTracks.length,
+    total: rankedTracks.length,
     limit: safeLimit,
     offset: safeOffset,
     hasMore,
