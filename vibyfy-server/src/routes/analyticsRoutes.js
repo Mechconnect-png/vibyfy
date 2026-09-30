@@ -3,6 +3,9 @@
  *
  * Public ingestion endpoint (requires API key):
  *   POST   /api/analytics/events
+ *   POST   /api/analytics/event
+ *   POST   /api/analytics
+ *   POST   /api/events
  *
  * Management endpoints (requires Firebase ID token):
  *   POST   /api/analytics/keys
@@ -48,13 +51,28 @@ const manageLimiter = rateLimit({
   skip: (req) => process.env.NODE_ENV === "test",
 });
 
-// ─── Public Event Ingestion ────────────────────────────────────────────────────
+// ─── Public Event Ingestion (with plural and singular aliases) ────────────────
 
 /**
- * POST /api/analytics/events
- * External-facing endpoint. Called by P2 tracker with a Bearer API key.
+ * POST /api/analytics/events (Standard)
+ * POST /api/analytics/event
+ * POST /api/analytics/
+ * POST /api/events
  */
 router.post("/events", ingestLimiter, requireApiKey, postAnalyticsEvent);
+router.post("/event", ingestLimiter, requireApiKey, postAnalyticsEvent);
+router.post("/", (req, res, next) => {
+  // If request has Bearer auth or event body, route to event ingestion
+  if (req.headers["authorization"] || req.body?.event) {
+    return requireApiKey(req, res, () => postAnalyticsEvent(req, res));
+  }
+  // Otherwise return API info
+  return res.json({
+    success: true,
+    service: "VIBYFY Analytics API",
+    endpoint: "POST /api/analytics/events",
+  });
+});
 
 // ─── Management Endpoints (Firebase Auth required) ────────────────────────────
 
@@ -72,6 +90,7 @@ router.get("/stats", manageLimiter, requireFirebaseAuth, getStats);
 
 /** GET /api/analytics/events — Recent event stream (dashboard preview) */
 router.get("/events", manageLimiter, requireFirebaseAuth, getEvents);
+router.get("/event", manageLimiter, requireFirebaseAuth, getEvents);
 
 // ─── Health / Info ────────────────────────────────────────────────────────────
 

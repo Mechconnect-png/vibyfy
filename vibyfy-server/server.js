@@ -69,9 +69,6 @@ app.use(cors(corsOptions));
 // Standard JSON body — generous limit for normal API usage
 app.use(express.json({ limit: "5mb" }));
 
-// Stricter limit for the analytics ingestion endpoint (10 KB is plenty)
-app.use("/api/analytics/events", express.json({ limit: "10kb" }));
-
 // ─── Existing Routes (unchanged) ─────────────────────────────────────────────
 
 // Mount Spotify Music API Routes
@@ -83,10 +80,19 @@ app.use("/api/usage", usageRoutes);
 // Mount Spotify OAuth User Auth & Playback Routes
 app.use("/api/spotify", spotifyAuthRoutes);
 
-// ─── Analytics API Routes ─────────────────────────────────────────────────────
+// ─── Analytics API Routes & Universal Aliases ────────────────────────────────
+// Standard base routes:
 app.use("/api/analytics", analyticsRoutes);
+app.use("/api/v1/analytics", analyticsRoutes);
+app.use("/analytics", analyticsRoutes);
 
-// ─── Health Check ─────────────────────────────────────────────────────────────
+// Direct event aliases:
+app.use("/api/events", analyticsRoutes);
+app.use("/api/event", analyticsRoutes);
+app.use("/events", analyticsRoutes);
+app.use("/event", analyticsRoutes);
+
+// ─── Health Check & Root Info ────────────────────────────────────────────────
 app.get("/", (req, res) => {
   res.json({
     success: true,
@@ -95,8 +101,12 @@ app.get("/", (req, res) => {
     brand: "VIBYFY",
     provider: "Spotify Web API",
     tagline: "Feel the vibe. Find your sound.",
-    analytics: "POST /api/analytics/events",
+    analyticsEndpoint: "POST /api/analytics/events",
   });
+});
+
+app.get("/health", (req, res) => {
+  res.json({ status: "healthy", timestamp: new Date().toISOString() });
 });
 
 // ─── Global Error Handler ─────────────────────────────────────────────────────
