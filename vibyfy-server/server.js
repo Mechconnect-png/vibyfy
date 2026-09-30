@@ -10,36 +10,60 @@ import { connectDatabase } from "./src/config/database.js";
 dotenv.config();
 
 // ─── CORS Configuration ──────────────────────────────────────────────────────
-// Configurable allowed origins via ANALYTICS_ALLOWED_ORIGINS env var.
-// Format: comma-separated list, e.g. "https://p2app.com,http://localhost:3000"
-const buildCorsOrigins = () => {
-  const raw = process.env.ANALYTICS_ALLOWED_ORIGINS || "";
-  const devOrigins = ["http://localhost:3000", "http://localhost:5173", "http://localhost:4173"];
-  if (!raw.trim()) return devOrigins;
-  return [
-    ...devOrigins,
-    ...raw.split(",").map((o) => o.trim()).filter(Boolean),
-  ];
-};
+const rawOrigins = process.env.ANALYTICS_ALLOWED_ORIGINS || "";
+const configuredOrigins = rawOrigins
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
 
-const allowedOrigins = buildCorsOrigins();
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true; // curl, Postman, server-to-server
+
+  // Any localhost or 127.0.0.1 on any port (5173, 5174, 3000, etc.)
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+    return true;
+  }
+
+  // Tunnel and common cloud preview domains
+  if (
+    origin.endsWith(".devtunnels.ms") ||
+    origin.endsWith(".vercel.app") ||
+    origin.endsWith(".onrender.com") ||
+    origin.endsWith(".netlify.app")
+  ) {
+    return true;
+  }
+
+  // Explicitly configured origins or wildcard
+  if (configuredOrigins.includes(origin) || configuredOrigins.includes("*")) {
+    return true;
+  }
+
+  return false;
+};
 
 const corsOptions = {
   origin: (origin, callback) => {
-    // Allow requests with no origin (curl, Postman, server-to-server)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
-    return callback(new Error(`CORS: origin '${origin}' not allowed`));
+    if (isAllowedOrigin(origin)) {
+      return callback(null, true);
+    }
+    return callback(null, false);
   },
-  methods: ["GET", "POST", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Firebase-Token"],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "X-Firebase-Token",
+    "X-Requested-With",
+    "Accept",
+  ],
   credentials: true,
-  optionsSuccessStatus: 204,
+  optionsSuccessStatus: 200,
 };
 
 const app = express();
 
-// Global middleware
+// Global CORS middleware (handles all routes and preflight OPTIONS automatically)
 app.use(cors(corsOptions));
 
 // Standard JSON body — generous limit for normal API usage
@@ -76,13 +100,12 @@ app.get("/", (req, res) => {
 });
 
 // ─── Global Error Handler ─────────────────────────────────────────────────────
-// Catches CORS rejections and any unhandled errors
 app.use((err, req, res, _next) => {
-  if (err.message && err.message.startsWith("CORS:")) {
-    return res.status(403).json({ success: false, error: err.message });
-  }
-  console.error("[server] Unhandled error:", err.message);
-  return res.status(500).json({ success: false, error: "Internal server error." });
+  console.error("[server] Error:", err.message);
+  return res.status(err.status || 500).json({
+    success: false,
+    error: err.message || "Internal server error.",
+  });
 });
 
 // ─── Startup ──────────────────────────────────────────────────────────────────
