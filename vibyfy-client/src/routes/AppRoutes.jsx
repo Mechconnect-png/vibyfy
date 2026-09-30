@@ -35,6 +35,7 @@ const PlaylistDetails = lazy(() => import("../pages/PlaylistDetails"));
 
 const Notifications = lazy(() => import("../pages/Notifications"));
 const Analytics = lazy(() => import("../pages/Analytics"));
+const AnalyticsApiKeys = lazy(() => import("../pages/AnalyticsApiKeys"));
 const Wrapped = lazy(() => import("../pages/Wrapped"));
 
 const Lyrics = lazy(() => import("../pages/Lyrics"));
@@ -111,6 +112,7 @@ const AppRoutes = ({ onOpenPremium }) => {
           <Route path="/settings" element={<Settings />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/analytics" element={<Analytics />} />
+          <Route path="/analytics/api-keys" element={<AnalyticsApiKeys />} />
           <Route path="/wrapped" element={<Wrapped />} />
         </Route>
       </Routes>

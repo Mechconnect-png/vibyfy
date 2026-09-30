@@ -1,6 +1,6 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
-import { Home, Sparkles, HeartPulse, Search, Library, Heart, History, Settings, Crown } from "lucide-react";
+import { Home, Sparkles, HeartPulse, Search, Library, Heart, History, Settings, Crown, Key } from "lucide-react";
 import VibyfyLogo from "../brand/VibyfyLogo";
 
 export const Sidebar = ({ onOpenPremium }) => {
@@ -11,6 +11,7 @@ export const Sidebar = ({ onOpenPremium }) => {
     { label: "Search & Discover", path: "/search", icon: Search },
     { label: "Your Library", path: "/library", icon: Library },
     { label: "Liked Songs", path: "/favorites", icon: Heart },
+    { label: "Analytics API Keys", path: "/analytics/api-keys", icon: Key },
   ];
 
   return (

@@ -1,8 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import AppRoutes from "./routes/AppRoutes";
 import SplashScreen from "./components/brand/SplashScreen";
 import PremiumModal from "./components/ui/PremiumModal";
-import AnalyticsTracker from "./components/analytics/AnalyticsTracker";
 import { Toaster } from "react-hot-toast";
 
 function App() {
@@ -21,7 +20,6 @@ function App() {
 
   return (
     <>
-      <AnalyticsTracker />
       <Toaster position="top-right" toastOptions={{ style: { background: "#0F172A", color: "#FFF" } }} />
       
       {showSplash && <SplashScreen onComplete={handleSplashComplete} duration={2400} />}
