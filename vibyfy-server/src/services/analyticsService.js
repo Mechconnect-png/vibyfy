@@ -249,3 +249,39 @@ export const getEventStats = async (ownerId) => {
       .sort((a, b) => b.count - a.count);
   }
 };
+
+/**
+ * Get full analytics summary (total events, unique visitors, sessions, top pages, event breakdown)
+ */
+export const getAnalyticsSummary = async (ownerId) => {
+  const [stats, recentEvents] = await Promise.all([
+    getEventStats(ownerId),
+    getRecentEvents(ownerId, 1000),
+  ]);
+
+  const totalEvents = stats.reduce((acc, curr) => acc + (curr.count || 0), 0);
+  const uniqueVisitors = new Set(recentEvents.map((e) => e.visitorId).filter(Boolean)).size;
+  const uniqueSessions = new Set(recentEvents.map((e) => e.sessionId).filter(Boolean)).size;
+
+  const pageCounts = {};
+  recentEvents.forEach((e) => {
+    if (e.page) {
+      pageCounts[e.page] = (pageCounts[e.page] || 0) + 1;
+    }
+  });
+
+  const topPages = Object.entries(pageCounts)
+    .map(([page, count]) => ({ page, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+
+  return {
+    totalEvents,
+    uniqueVisitors,
+    uniqueSessions,
+    eventsByType: stats,
+    topPages,
+    recentEvents: recentEvents.slice(0, 20),
+  };
+};
+

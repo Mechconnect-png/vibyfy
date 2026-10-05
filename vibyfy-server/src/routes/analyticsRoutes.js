@@ -25,6 +25,7 @@ import {
   deleteKey,
   getStats,
   getEvents,
+  getSummary,
 } from "../controllers/analyticsKeysController.js";
 
 const router = express.Router();
@@ -87,6 +88,9 @@ router.delete("/keys/:keyId", manageLimiter, requireFirebaseAuth, deleteKey);
 
 /** GET /api/analytics/stats — Aggregated event stats */
 router.get("/stats", manageLimiter, requireFirebaseAuth, getStats);
+
+/** GET /api/analytics/summary — Full analytics metrics and breakdown */
+router.get("/summary", manageLimiter, requireFirebaseAuth, getSummary);
 
 /** GET /api/analytics/events — Recent event stream (dashboard preview) */
 router.get("/events", manageLimiter, requireFirebaseAuth, getEvents);

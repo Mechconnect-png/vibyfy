@@ -15,6 +15,7 @@ import {
   revokeApiKey,
   getRecentEvents,
   getEventStats,
+  getAnalyticsSummary,
 } from "../services/analyticsService.js";
 
 /**
@@ -126,3 +127,18 @@ export const getEvents = async (req, res) => {
     return res.status(500).json({ success: false, error: "Failed to fetch events." });
   }
 };
+
+/**
+ * GET /api/analytics/summary
+ */
+export const getSummary = async (req, res) => {
+  try {
+    const { uid } = req.firebaseUser;
+    const summary = await getAnalyticsSummary(uid);
+    return res.json({ success: true, summary });
+  } catch (err) {
+    console.error("[keysController] getSummary error:", err.message);
+    return res.status(500).json({ success: false, error: "Failed to fetch summary." });
+  }
+};
+

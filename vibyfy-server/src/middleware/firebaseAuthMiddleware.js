@@ -1,10 +1,11 @@
 /**
- * VIBYFY Analytics — Firebase ID Token & Session Auth Middleware
+ * VIBYFY Analytics — Firebase ID Token & API Key Session Auth Middleware
  *
- * Verifies the Firebase ID token sent in X-Firebase-Token or Authorization header
- * and attaches { uid, email } to req.firebaseUser.
+ * Verifies the Firebase ID token or Bearer API Key (sk_live_...)
+ * sent in X-Firebase-Token or Authorization header and attaches { uid, email } to req.firebaseUser.
  */
 import jwt from "jsonwebtoken";
+import { authenticateApiKey } from "../services/analyticsService.js";
 
 /**
  * Lightweight Firebase JWT decoder with fallback for dev/guest tokens.
@@ -42,7 +43,7 @@ const decodeFirebaseToken = (token) => {
   return null;
 };
 
-export const requireFirebaseAuth = (req, res, next) => {
+export const requireFirebaseAuth = async (req, res, next) => {
   try {
     const token =
       req.headers["x-firebase-token"] ||
@@ -50,6 +51,20 @@ export const requireFirebaseAuth = (req, res, next) => {
 
     if (!token) {
       return res.status(401).json({ success: false, error: "Authentication required. Please sign in." });
+    }
+
+    // Support Bearer sk_live_... API key authentication directly for analytics reading
+    if (token.startsWith("sk_live_")) {
+      const apiKeyDoc = await authenticateApiKey(token);
+      if (!apiKeyDoc) {
+        return res.status(401).json({ success: false, error: "Invalid or revoked API key." });
+      }
+      req.firebaseUser = {
+        uid: apiKeyDoc.ownerId,
+        email: "api_key_user@vibyfy.local",
+        apiKey: apiKeyDoc,
+      };
+      return next();
     }
 
     const decoded = decodeFirebaseToken(token);
