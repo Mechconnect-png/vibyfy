@@ -14,9 +14,27 @@
     <title>VIBYFY</title>
 
     <!-- Live Website Analytics Tracker -->
-    <script
-      src="http://localhost:4000/tracker.js"
-      data-site-id="vibyfy">
+    <script>
+      (function () {
+        var isHttps = window.location.protocol === 'https:';
+        var protocol = isHttps ? 'https:' : 'http:';
+        var host = (window.location && window.location.hostname) ? window.location.hostname : 'localhost';
+        var isLocal = host === 'localhost' || host === '127.0.0.1' || /^192\.168\./.test(host) || /^10\./.test(host);
+        
+        var customApiUrl = window.__ANALYTICS_API_URL__ || (function () {
+          var meta = document.querySelector('meta[name="analytics-api-url"]');
+          return meta ? meta.getAttribute('content') : null;
+        })();
+
+        var baseUrl = customApiUrl || (isLocal ? protocol + '//' + host + ':4000' : protocol + '//' + host);
+        
+        var script = document.createElement('script');
+        script.src = baseUrl + '/tracker.js';
+        script.setAttribute('data-site-id', 'vibyfy');
+        script.setAttribute('data-api-url', baseUrl);
+        script.async = true;
+        document.head.appendChild(script);
+      })();
     </script>
   </head>
 
